@@ -1,0 +1,104 @@
+<%#
+  Pod: LLM Chat Window
+  Description: A progressively enhanced Niimble Relay chat experience.
+%>
+<div class="pod-llm-chat-window pod-category-content hidden overflow-hidden bg-neutral-950 font-sans font-normal"
+     data-controller="llm-chat"
+     data-llm-chat-url-value="<%= MosaicRelay::Engine.routes.url_helpers.api_relay_chat_path %>"
+     data-llm-chat-availability-url-value="<%= MosaicRelay::Engine.routes.url_helpers.api_relay_chat_availability_path %>"
+     data-llm-chat-allow-insecure-assets-value="<%= Rails.env.development? %>">
+  <section data-llm-chat-target="initial"
+           class="mx-auto max-w-none px-6 py-12 transition duration-[180ms] ease-out sm:px-10 lg:px-10 lg:py-0">
+    <div class="grid w-full grid-cols-1 items-start lg:min-h-[410px] lg:grid-cols-[minmax(0,1fr)_28.5rem] lg:items-center lg:gap-24">
+      <div>
+        <p class="flex items-center gap-3 text-[15px] text-neutral-400">
+          <span class="block h-[15px] w-[2px] shrink-0 bg-amber-400" aria-hidden="true"></span>
+          Ask the Niimble Relay AI assistant
+        </p>
+
+        <h2 class="mt-8 max-w-[900px] text-[44px] font-normal leading-[1.22] tracking-[0] text-[#D4D4D4] sm:text-[56px] lg:text-[66px] lg:leading-[80px]">
+          Looking for something<br class="hidden lg:inline"> specific, or have a Question?
+        </h2>
+
+        <form class="mt-6 max-w-[750px] md:mt-12" data-llm-chat-target="form" data-action="submit->llm-chat#submit">
+          <label class="sr-only" for="niimble-relay-prompt">Ask Niimble Relay a question</label>
+          <div class="flex items-center gap-3 rounded-full bg-[#232323] py-2 pl-5 pr-2 ring-1 ring-white/5 transition duration-200 focus-within:ring-white/25">
+            <span class="grid size-6 shrink-0 place-items-center" aria-hidden="true"><span class="block size-[10px] rounded-[2px] bg-white"></span></span>
+            <textarea id="niimble-relay-prompt"
+                   data-llm-chat-target="input"
+                   data-action="input->llm-chat#resizeInput keydown->llm-chat#submitOnEnter"
+                   name="message"
+                   autocomplete="off"
+                   maxlength="4000"
+                   rows="1"
+                   placeholder="Ask a question about this organisation's published information..."
+                   class="min-h-10 min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent py-2 text-[15px] text-neutral-100 placeholder:text-neutral-400 focus:ring-0"></textarea>
+            <button type="submit"
+                    data-llm-chat-target="sendButton"
+                    aria-label="Ask Niimble Relay"
+                    class="grid size-10 shrink-0 place-items-center rounded-full bg-white text-[#111] transition duration-200 hover:scale-105 hover:bg-neutral-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#232323]">
+              <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div class="mt-12 lg:mt-10">
+        <aside class="rounded-2xl border border-white/5 bg-[#101010] p-8 sm:p-10 lg:p-14">
+          <p class="text-[15px] leading-[1.65] text-neutral-400">
+            Niimble Relay is an intelligent assistant powered by this organisation's published information. Ask questions to find accurate answers and useful guidance from the available sources.
+          </p>
+        </aside>
+        <div class="mt-5">
+          <%= render "pods/shared/llm_chat_footer" %>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section data-llm-chat-target="conversation"
+           class="hidden translate-y-2 bg-transparent text-neutral-100 opacity-0 transition duration-300 ease-out">
+    <div class="mx-auto max-w-[1650px] px-3 py-6 sm:px-5 lg:px-6 lg:py-10">
+      <div class="mb-5 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <span class="block h-5 w-[3px] bg-amber-400" aria-hidden="true"></span>
+          <div><p class="text-[15px] text-neutral-400">Niimble Relay</p></div>
+        </div>
+        <button type="button" data-llm-chat-target="resetButton" data-action="llm-chat#reset" aria-label="Start a new conversation" title="Start a new conversation" class="grid size-9 place-items-center rounded-full text-neutral-400 transition hover:bg-white/5 hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+          <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path></svg>
+        </button>
+      </div>
+
+      <div class="overflow-hidden bg-transparent lg:grid lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,.95fr)]">
+        <div class="flex flex-col lg:min-h-[620px]">
+          <div data-llm-chat-target="messages" role="log" aria-live="polite" class="llm-chat-scrollbar flex max-h-[530px] min-h-[420px] flex-1 flex-col gap-6 overflow-y-auto scroll-smooth p-5 sm:p-7"></div>
+          <div data-llm-chat-target="typing" class="hidden px-5 pb-3 sm:px-7" aria-live="polite" aria-label="Niimble Relay is thinking">
+            <div class="flex w-fit items-center gap-1.5 rounded-full border border-white/10 bg-transparent px-3 py-2"><span class="size-1.5 animate-bounce rounded-full bg-amber-400 [animation-delay:-0.2s]"></span><span class="size-1.5 animate-bounce rounded-full bg-amber-400 [animation-delay:-0.1s]"></span><span class="size-1.5 animate-bounce rounded-full bg-amber-400"></span></div>
+          </div>
+          <form class="p-4 sm:p-5" data-llm-chat-target="form" data-action="submit->llm-chat#submit">
+            <label class="sr-only" for="niimble-relay-conversation-prompt">Ask another question</label>
+            <div class="flex items-center gap-3 rounded-2xl bg-white/5 p-2 pl-4 transition duration-200 focus-within:bg-white/10 focus-within:ring-2 focus-within:ring-amber-400/40">
+              <textarea id="niimble-relay-conversation-prompt" data-llm-chat-target="input" data-action="input->llm-chat#resizeInput keydown->llm-chat#submitOnEnter" name="message" autocomplete="off" maxlength="4000" rows="1" placeholder="Ask a question…" class="min-h-10 min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:ring-0"></textarea>
+              <button type="submit" data-llm-chat-target="sendButton" aria-label="Send question" class="grid size-10 shrink-0 place-items-center rounded-lg bg-amber-400 text-[#111] transition duration-200 hover:scale-105 hover:bg-amber-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0b]"><svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="m13 6 6 6-6 6"></path></svg></button>
+            </div>
+          </form>
+        </div>
+
+        <div class="flex flex-col lg:min-h-[620px]">
+          <aside class="flex min-h-0 flex-1 flex-col rounded-md bg-[#101010] p-5 sm:p-6" aria-label="Sources">
+            <div class="mb-3 flex items-center justify-between gap-3 px-3">
+              <h3 class="text-sm font-normal text-neutral-100">Sources</h3>
+            </div>
+            <p data-llm-chat-target="sourceCount" class="sr-only" aria-live="polite">References appear here</p>
+            <div data-llm-chat-target="sources" class="llm-chat-scrollbar grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-1"></div>
+            <div data-llm-chat-target="emptySources" class="px-5 py-10 text-center"><span class="text-2xl text-amber-400" aria-hidden="true">✦</span><p class="mt-3 text-sm leading-5 text-neutral-400">Supporting pages will appear here with each answer.</p></div>
+          </aside>
+
+          <footer class="flex min-h-[72px] shrink-0 flex-col items-center justify-start gap-2 pt-3 text-center text-[10px] leading-none text-neutral-500 sm:min-h-[76px]">
+            <%= render "pods/shared/llm_chat_footer" %>
+          </footer>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

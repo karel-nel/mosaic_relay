@@ -1,0 +1,18 @@
+/.bundle/
+/node_modules/
+/doc/
+/log/*.log
+/pkg/
+/tmp/
+/test/dummy/db/*.sqlite3
+/test/dummy/db/*.sqlite3-*
+/test/dummy/log/*.log
+/test/dummy/storage/
+/test/dummy/tmp/
+# Local environment files
+/.env
+/.env.*
+!/.env.example
+
+# Built gem packages
+/*.gem

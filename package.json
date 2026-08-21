@@ -1,0 +1,12 @@
+{
+  "name": "mosaic-relay",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:js": "node --test test/javascript/llm_chat_controller_test.mjs"
+  },
+  "dependencies": {
+    "@hotwired/stimulus": "^3.2.2",
+    "@rails/actioncable": "^8.0.200"
+  }
+}

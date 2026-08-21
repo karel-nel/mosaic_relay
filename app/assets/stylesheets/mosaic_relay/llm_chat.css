@@ -1,0 +1,30 @@
+/* Kept local to the chat so the host site's browser chrome is unchanged. */
+@media (min-width: 1024px) {
+  .llm-chat-scrollbar {
+    scrollbar-color: #747474 transparent;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+  }
+
+  .llm-chat-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .llm-chat-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .llm-chat-scrollbar::-webkit-scrollbar-thumb {
+    background: #747474;
+    border-radius: 999px;
+  }
+
+  .llm-chat-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #9a9a9a;
+  }
+
+  .llm-chat-scrollbar::-webkit-scrollbar-button {
+    display: none;
+  }
+}

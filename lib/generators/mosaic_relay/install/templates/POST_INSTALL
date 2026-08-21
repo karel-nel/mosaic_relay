@@ -1,0 +1,15 @@
+MosaicRelay files are installed.
+
+Next steps:
+  1. Set RELAY_SOURCE_TOKEN, RELAY_PUBLIC_BASE_URL, RELAY_CHAT_BASE_URL,
+     and RELAY_CHAT_TOKEN in the host application's environment.
+  2. Run: bin/rails db:migrate
+  3. Run: bin/rails mosaic_relay:install:pod_definition
+  4. Rebuild JavaScript and CSS using the host application's normal commands.
+  5. Add the LLM Chat Window Pod to a page and verify chat and document feed requests.
+
+The document feed is mounted at:
+  /mosaic_relay/api/relay/documents
+
+The chat endpoint is mounted at:
+  /mosaic_relay/api/relay/chat

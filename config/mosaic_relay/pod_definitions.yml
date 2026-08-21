@@ -1,0 +1,20 @@
+---
+pod_definitions:
+  llm_chat_window:
+    name: LLM Chat Window
+    description: A chat window for interacting with the LLM
+    category: content
+    icon: chat
+    usable_in_sections: true
+    complexity: simple
+    recommended_for:
+      - content
+      - tabs
+    schema:
+      Title:
+        type: text
+        label: Title
+        position: 10
+        required: true
+        placeholder: Enter the tab title...
+        inspector_group: content
