@@ -10,6 +10,8 @@ class MosaicRelayInstallGeneratorTest < Rails::Generators::TestCase
 
   setup do
     prepare_destination
+    write_host_file("Gemfile", "source \"https://rubygems.org\"\n")
+    write_host_file("config/application.rb", "class Application < Rails::Application; end\n")
     write_host_file("config/routes.rb", "Rails.application.routes.draw do\nend\n")
     write_host_file(
       "app/javascript/controllers/index.js",
@@ -31,6 +33,7 @@ class MosaicRelayInstallGeneratorTest < Rails::Generators::TestCase
     assert_file "config/initializers/mosaic_relay.rb" do |content|
       assert_includes content, "MosaicRelay.configure"
       assert_not_includes content, "RELAY_CHAT_TOKEN ="
+      assert_includes content, "RELAY_REDIS_URL"
     end
 
     assert_file "config/routes.rb" do |content|
@@ -111,6 +114,33 @@ class MosaicRelayInstallGeneratorTest < Rails::Generators::TestCase
     assert_includes error.message, "consuming Mosaic application"
     assert_equal routes_before, File.read(MosaicRelay::Engine.root.join("config/routes.rb"))
     assert_not File.exist?(MosaicRelay::Engine.root.join("config/initializers/mosaic_relay.rb"))
+  end
+
+  test "refuses to install outside a Rails application root" do
+    write_host_file("config/routes.rb", "Rails.application.routes.draw do\nend\n")
+    FileUtils.rm_f(File.join(destination_root, "Gemfile"))
+    FileUtils.rm_f(File.join(destination_root, "config/application.rb"))
+
+    install_generator = MosaicRelay::Generators::InstallGenerator.new(
+      [],
+      {},
+      destination_root: destination_root
+    )
+    error = assert_raises(Thor::Error) { install_generator.ensure_host_application }
+
+    assert_includes error.message, "Rails application root"
+    assert_not File.exist?(File.join(destination_root, "config/initializers/mosaic_relay.rb"))
+  end
+
+  test "preserves an existing initializer" do
+    write_host_file("config/initializers/mosaic_relay.rb", "MosaicRelay.configure { |config| config.chat_tenant_key = \"custom\" }\n")
+
+    run_generator
+
+    assert_file "config/initializers/mosaic_relay.rb" do |content|
+      assert_includes content, 'config.chat_tenant_key = "custom"'
+      assert_not_includes content, "RELAY_REDIS_URL"
+    end
   end
 
   private

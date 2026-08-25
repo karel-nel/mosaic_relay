@@ -7,7 +7,9 @@ MosaicRelay.configure do |config|
   # config.page_model = Page
   # config.blog_model = Blog
   # config.page_element_model = PageElement
-  # config.redis = Redis.new(url: ENV.fetch("REDIS_URL"))
+  redis_url = ENV["RELAY_REDIS_URL"].to_s.strip
+  redis_url = ENV["REDIS_URL"].to_s.strip if redis_url.empty?
+  config.redis = Redis.new(url: redis_url) if redis_url.present?
   # config.asset_url_builder = ->(blob) { "https://cdn.example/#{blob.key}" }
   # config.blog_path_builder = ->(blog) { "/blog/#{ERB::Util.url_encode(blog.slug)}" }
 end

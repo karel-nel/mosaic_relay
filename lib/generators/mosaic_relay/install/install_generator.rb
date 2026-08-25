@@ -34,14 +34,21 @@ module MosaicRelay
       end
 
       def ensure_host_application
-        return unless Pathname.new(destination_root).expand_path == MosaicRelay::Engine.root.expand_path
+        if Pathname.new(destination_root).expand_path == MosaicRelay::Engine.root.expand_path
+          raise Thor::Error,
+            "Run mosaic_relay:install from the consuming Mosaic application, not from the mosaic_relay gem directory."
+        end
+
+        required_files = %w[Gemfile config/application.rb config/routes.rb]
+        missing_files = required_files.reject { |path| File.file?(destination_path(path)) }
+        return if missing_files.empty?
 
         raise Thor::Error,
-          "Run mosaic_relay:install from the consuming Mosaic application, not from the mosaic_relay gem directory."
+          "MosaicRelay requires a Rails application root; missing #{missing_files.join(', ')}."
       end
 
       def create_initializer
-        template "initializer.rb", "config/initializers/mosaic_relay.rb"
+        copy_file_unless_present("initializer.rb", "config/initializers/mosaic_relay.rb")
       end
 
       def mount_engine

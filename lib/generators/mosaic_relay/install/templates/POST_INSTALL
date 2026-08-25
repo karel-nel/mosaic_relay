@@ -2,11 +2,15 @@ MosaicRelay files are installed.
 
 Next steps:
   1. Set RELAY_SOURCE_TOKEN, RELAY_PUBLIC_BASE_URL, RELAY_CHAT_BASE_URL,
-     and RELAY_CHAT_TOKEN in the host application's environment.
-  2. Run: bin/rails db:migrate
-  3. Run: bin/rails mosaic_relay:install:pod_definition
-  4. Rebuild JavaScript and CSS using the host application's normal commands.
-  5. Add the LLM Chat Window Pod to a page and verify chat and document feed requests.
+     RELAY_CHAT_TOKEN, and RELAY_CHAT_TENANT_KEY in the host application's environment.
+  2. Set RELAY_REDIS_URL (or REDIS_URL) so credit availability can be checked.
+  3. Configure page_model, blog_model, and any host-specific URL/schema adapters
+     in config/initializers/mosaic_relay.rb.
+  4. Run: bin/rails db:migrate
+  5. Run: bin/rails mosaic_relay:install:pod_definition
+  6. Rebuild JavaScript and CSS using the host application's normal commands.
+  7. Optionally mount ActionCable.server at /cable for real-time availability updates.
+  8. Add the LLM Chat Window Pod to a page and verify chat and document feed requests.
 
 The document feed is mounted at:
   /mosaic_relay/api/relay/documents

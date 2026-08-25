@@ -18,6 +18,7 @@ RELAY_PUBLIC_BASE_URL
 RELAY_CHAT_BASE_URL
 RELAY_CHAT_TOKEN
 RELAY_CHAT_TENANT_KEY
+RELAY_REDIS_URL
 RELAY_CHAT_OPEN_TIMEOUT_SECONDS
 RELAY_CHAT_READ_TIMEOUT_SECONDS
 RELAY_DEFAULT_LANGUAGE
@@ -46,6 +47,11 @@ MosaicRelay.configure do |config|
   config.page_element_model = MyPageElement
 end
 ```
+
+Redis is used to coordinate chat credit availability. The generated initializer
+uses `RELAY_REDIS_URL` and falls back to `REDIS_URL` when either is present.
+Action Cable is optional; mount `ActionCable.server => "/cable"` in the host
+routes if real-time availability updates are required.
 
 When the configured Mosaic models are present, the engine automatically adds
 change-ledger callbacks for pages, blogs, pods, page structure, and blog
@@ -93,6 +99,9 @@ The generator mounts the engine, installs the change-ledger migration and
 initializer, registers the Stimulus controller, installs overridable Pod views
 and styles, and merges the `llm_chat_window` definition into
 `config/pod_definitions.yml`. Existing host overrides are preserved.
+
+The installer validates that it is running from a Rails application root and
+does not overwrite an existing initializer, Pod view, controller, or stylesheet.
 
 Run the generator from the consuming Mosaic application, not from this gem's
 source directory. The Pod installation task updates the host's
