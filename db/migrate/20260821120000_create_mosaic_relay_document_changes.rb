@@ -1,4 +1,4 @@
-class CreateMosaicRelayDocumentChanges < ActiveRecord::Migration[8.0]
+class CreateMosaicRelayDocumentChanges < ActiveRecord::Migration[7.1]
   def change
     create_table :mosaic_relay_document_changes do |t|
       t.string :external_id, null: false

@@ -69,6 +69,24 @@ class MosaicRelayPageContentExtractorTest < ActiveSupport::TestCase
     assert_equal page_pod_updated_at, result.updated_at
   end
 
+  test "extracts legacy Pod content when a page has no section-builder API" do
+    pod = Pod.new(7, "basic_text", { "content" => "Legacy content" }, Time.utc(2026, 8, 21, 10, 5))
+    page_pod = Struct.new(:pod, :position, :updated_at) do
+      def merged_definition
+        { "content" => "<p>Merrell content</p>" }
+      end
+    end.new(pod, 1, Time.utc(2026, 8, 21, 10, 6))
+    page = Struct.new(:title, :meta_description, :updated_at, :page_pods).new(
+      "Race information", nil, Time.utc(2026, 8, 21, 10), Collection.new([ page_pod ])
+    )
+    schema = { "content" => { "type" => "rich_text", "position" => 1, "label" => "Content" } }
+
+    result = MosaicRelay::PageContentExtractor.new(page, pod_schema_resolver: ->(*) { schema }).call
+
+    assert_includes result.content, "Merrell content"
+    assert_equal [ "basic_text" ], result.pod_types
+  end
+
   test "extracts ordered section-builder headings and text" do
     heading = Element.new(1, Contract.new("heading"), { "text" => "Welcome" }, { "level" => "h3" }, 1, Time.utc(2026, 8, 21, 10, 2), nil)
     text = Element.new(2, Contract.new("text"), { "body" => "<p>Read the <em>latest</em> updates.</p>" }, {}, 2, Time.utc(2026, 8, 21, 10, 3), nil)

@@ -174,6 +174,44 @@ class MosaicRelayDocumentSerializerTest < ActiveSupport::TestCase
     assert_nil MosaicRelay::DocumentSerializer.for_blog(blog)
   end
 
+  test "serializes a Merrell-style blog with a singular category and no legacy associations" do
+    blog_class = Struct.new(
+      :id, :title, :slug, :excerpt, :content_plain_text, :content, :updated_at,
+      :published_at, :created_at, :blog_category, :blog_tags, :cover_image,
+      keyword_init: true
+    ) do
+      def displayable? = true
+      def display_title = title
+      def author_name = "Merrell Team"
+      def seo_title = nil
+      def seo_description = nil
+    end
+    blog = blog_class.new(
+      id: 9,
+      title: "Trail running guide",
+      slug: "trail-running-guide",
+      excerpt: "What to bring.",
+      content_plain_text: "Bring layers and water.",
+      content: RichContent.new(RichBody.new("<p>Bring layers and water.</p>"), Time.utc(2026, 8, 21, 10, 4)),
+      updated_at: Time.utc(2026, 8, 21, 10),
+      published_at: Time.utc(2026, 8, 20, 8),
+      created_at: Time.utc(2026, 8, 19, 8),
+      blog_category: Category.new(3, "Advice", "advice"),
+      blog_tags: Collection.new([ Tag.new(4, "Trail", "trail") ]),
+      cover_image: Attachment.new(false)
+    )
+    MosaicRelay.configure do |configuration|
+      configuration.blog_path_builder = ->(record) { "/blog/#{record.slug}" }
+    end
+
+    document = MosaicRelay::DocumentSerializer.for_blog(blog)
+
+    assert_equal "https://mosaic.example/blog/trail-running-guide", document.fetch("url")
+    assert_equal [ { "id" => 3, "name" => "Advice", "slug" => "advice" } ], document.dig("metadata", "categories")
+    assert_equal [], document.dig("metadata", "legacy_paths")
+    assert_not document.fetch("metadata").key?("legacy_post_id")
+  end
+
   test "returns a tombstone for an unknown or unsupported change" do
     change = Change.new("Page", 999, "pages:999")
 

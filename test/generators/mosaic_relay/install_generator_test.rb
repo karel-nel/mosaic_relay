@@ -80,6 +80,24 @@ class MosaicRelayInstallGeneratorTest < Rails::Generators::TestCase
     assert_equal 1, migrations.length
   end
 
+  test "mounts before a conventional CMS catch-all route" do
+    write_host_file(
+      "config/routes.rb",
+      <<~RUBY
+        Rails.application.routes.draw do
+          root "pages#home"
+          get "*path", to: "pages#show"
+        end
+      RUBY
+    )
+
+    run_generator
+
+    assert_file "config/routes.rb" do |content|
+      assert_operator content.index('mount MosaicRelay::Engine => "/mosaic_relay"'), :<, content.index('get "*path"')
+    end
+  end
+
   test "refuses to install into the gem source directory" do
     routes_before = File.read(MosaicRelay::Engine.root.join("config/routes.rb"))
     install_generator = MosaicRelay::Generators::InstallGenerator.new(

@@ -2,6 +2,11 @@
 
 Mosaic integration for the Niimble Relay chat and document-ingestion APIs.
 
+## Compatibility
+
+MosaicRelay supports Ruby 3.2+ and Rails 7.1, 7.2, 8.0, and 8.1. The test
+suite runs against each supported Rails release in CI.
+
 ## Configuration
 
 The gem reads its default configuration from environment variables. Credentials
@@ -35,6 +40,7 @@ builder when its CMS uses different adapters:
 MosaicRelay.configure do |config|
   config.pod_schema_resolver = ->(pod_type) { MyPodSchemas.schema_for(pod_type) }
   config.asset_url_builder = ->(blob) { "https://cdn.example/#{blob.key}" }
+  config.blog_path_builder = ->(blog) { "/blog/#{ERB::Util.url_encode(blog.slug)}" }
   config.page_model = MyPage
   config.blog_model = MyBlog
   config.page_element_model = MyPageElement

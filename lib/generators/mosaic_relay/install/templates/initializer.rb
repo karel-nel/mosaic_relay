@@ -9,4 +9,5 @@ MosaicRelay.configure do |config|
   # config.page_element_model = PageElement
   # config.redis = Redis.new(url: ENV.fetch("REDIS_URL"))
   # config.asset_url_builder = ->(blob) { "https://cdn.example/#{blob.key}" }
+  # config.blog_path_builder = ->(blog) { "/blog/#{ERB::Util.url_encode(blog.slug)}" }
 end

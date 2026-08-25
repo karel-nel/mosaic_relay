@@ -103,7 +103,7 @@ module MosaicRelay
         return unless model
 
         scope = model.visible.published.where("blogs.id > ?", last_id)
-        scope = scope.includes(:blog_category, :blog_categories, :blog_tags, :blog_taggings, :blog_category_assignments, :blog_legacy_redirects) if scope.respond_to?(:includes)
+        scope = scope.includes(*blog_association_names(model)) if scope.respond_to?(:includes) && blog_association_names(model).any?
         scope = scope.with_rich_text_content if scope.respond_to?(:with_rich_text_content)
         scope.order(:id)
       end
@@ -142,6 +142,15 @@ module MosaicRelay
 
     def configuration
       MosaicRelay.configuration
+    end
+
+    def blog_association_names(model)
+      return [] unless model.respond_to?(:reflect_on_association)
+
+      %i[
+        blog_category blog_categories blog_tags blog_taggings
+        blog_category_assignments blog_legacy_redirects
+      ].select { |name| model.reflect_on_association(name) }
     end
   end
 end

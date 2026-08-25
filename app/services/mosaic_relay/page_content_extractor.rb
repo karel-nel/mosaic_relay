@@ -21,7 +21,7 @@ module MosaicRelay
     end
 
     def call
-      body = page.sections? ? section_content : legacy_pod_content
+      body = section_builder_page? ? section_content : legacy_pod_content
       content = [ "Title: #{page.title}", page.meta_description.presence && "Description: #{PlainText.clean(page.meta_description)}", body.presence ].compact.join("\n\n")
 
       Result.new(
@@ -39,10 +39,35 @@ module MosaicRelay
     attr_reader :page
 
     def legacy_pod_content
-      page.page_pods.visible.includes(:pod).ordered_by_position.filter_map do |page_pod|
+      legacy_page_pods.filter_map do |page_pod|
         @timestamps.concat([ page_pod.updated_at, page_pod.pod.updated_at ])
-        extract_pod(page_pod.pod, page_pod.live_definition)
+        extract_pod(page_pod.pod, page_pod_definition(page_pod))
       end.join("\n\n")
+    end
+
+    def section_builder_page?
+      page.respond_to?(:sections?) && page.sections?
+    end
+
+    def legacy_page_pods
+      relation = page.page_pods
+      relation = relation.visible if relation.respond_to?(:visible)
+      relation = relation.includes(:pod) if relation.respond_to?(:includes)
+
+      if relation.respond_to?(:ordered_by_position)
+        relation.ordered_by_position
+      elsif relation.respond_to?(:order)
+        relation.order(:position)
+      else
+        Array(relation).sort_by(&:position)
+      end
+    end
+
+    def page_pod_definition(page_pod)
+      return page_pod.live_definition if page_pod.respond_to?(:live_definition)
+      return page_pod.merged_definition if page_pod.respond_to?(:merged_definition)
+
+      page_pod.pod.definition
     end
 
     def section_content

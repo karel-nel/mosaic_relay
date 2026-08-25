@@ -18,6 +18,7 @@ module MosaicRelay
                   :broadcaster,
                   :pod_schema_resolver,
                   :asset_url_builder,
+                  :blog_path_builder,
                   :page_model,
                   :blog_model,
                   :page_element_model
@@ -40,7 +41,7 @@ module MosaicRelay
                    chat_tenant_key: "mosaic", chat_open_timeout_seconds: DEFAULT_CHAT_OPEN_TIMEOUT_SECONDS,
                    chat_read_timeout_seconds: DEFAULT_CHAT_READ_TIMEOUT_SECONDS, default_language: DEFAULT_LANGUAGE,
                    page_size: DEFAULT_PAGE_SIZE, redis: nil, broadcaster: nil, pod_schema_resolver: nil,
-                   asset_url_builder: nil, page_model: nil, blog_model: nil, page_element_model: nil)
+                   asset_url_builder: nil, blog_path_builder: nil, page_model: nil, blog_model: nil, page_element_model: nil)
       @source_token = source_token
       @public_base_url = public_base_url
       @chat_base_url = chat_base_url
@@ -54,6 +55,7 @@ module MosaicRelay
       @broadcaster = broadcaster
       @pod_schema_resolver = pod_schema_resolver
       @asset_url_builder = asset_url_builder
+      @blog_path_builder = blog_path_builder
       @page_model = page_model
       @blog_model = blog_model
       @page_element_model = page_element_model

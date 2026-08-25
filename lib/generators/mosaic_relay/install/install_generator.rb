@@ -48,8 +48,16 @@ module MosaicRelay
         routes_path = destination_path("config/routes.rb")
         mount = 'mount MosaicRelay::Engine => "/mosaic_relay"'
 
-        if File.exist?(routes_path) && File.read(routes_path).include?(mount)
+        unless File.exist?(routes_path)
+          say_status :warning, "config/routes.rb not found; mount #{mount} manually"
+          return
+        end
+
+        routes = File.read(routes_path)
+        if routes.include?(mount)
           say_status :identical, "config/routes.rb"
+        elsif (catch_all = routes.match(catch_all_route_pattern))
+          insert_into_file routes_path, "#{catch_all[1]}#{mount}\n", before: catch_all_route_pattern
         else
           route mount
         end
@@ -154,6 +162,10 @@ module MosaicRelay
         else
           copy_file source, destination
         end
+      end
+
+      def catch_all_route_pattern
+        /^(\s*)(?:get|match)\s+["']\*path["']/
       end
 
       def pod_definition_yaml

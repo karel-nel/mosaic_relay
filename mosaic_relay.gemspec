@@ -11,12 +11,13 @@ Gem::Specification.new do |spec|
   spec.license     = "MIT"
 
   spec.metadata["homepage_uri"] = spec.homepage
+  spec.required_ruby_version = ">= 3.2"
 
   spec.files = Dir.chdir(File.expand_path(__dir__)) do
     Dir["{app,config,db,docs,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md"]
   end
 
-  spec.add_dependency "rails", ">= 8.0.3"
+  spec.add_dependency "rails", ">= 7.1", "< 8.2"
   spec.add_dependency "nokogiri", ">= 1.12"
   spec.add_dependency "redis", ">= 5.0"
 end

@@ -25,7 +25,7 @@ module MosaicRelay
             page_id: page.id,
             slug: page.slug,
             canonical_path: page_path(page),
-            builder_mode: page.builder_mode,
+            builder_mode: (page.builder_mode if page.respond_to?(:builder_mode)),
             published_at: iso8601(page.published_at),
             meta_description: PlainText.clean(page.meta_description),
             menu_title: page.menu_title,
@@ -45,8 +45,8 @@ module MosaicRelay
         body = PlainText.clean(blog.content_plain_text)
         return if body.blank?
 
-        categories = blog.category_records.map { |category| taxonomy(category) }
-        tags = blog.blog_tags.order(:name).map { |tag| taxonomy(tag) }
+        categories = blog_categories(blog).map { |category| taxonomy(category) }
+        tags = ordered_blog_tags(blog).map { |tag| taxonomy(tag) }
         content = [
           "Title: #{blog.title}",
           blog.excerpt.presence && "Summary: #{PlainText.clean(blog.excerpt)}",
@@ -57,12 +57,17 @@ module MosaicRelay
           ({ "kind" => "paragraph", "text" => PlainText.clean(blog.excerpt) } if blog.excerpt.present?),
           *ContentBlockExtractor.from_html(blog.content&.body&.to_html || body)
         ].compact
-        updated_at = [ blog.updated_at, blog.content&.updated_at, *blog.blog_taggings.map(&:updated_at), *blog.blog_category_assignments.map(&:updated_at) ].compact.max
+        updated_at = [
+          blog.updated_at,
+          blog.content&.updated_at,
+          *association_timestamps(blog, :blog_taggings),
+          *association_timestamps(blog, :blog_category_assignments)
+        ].compact.max
 
         document(
           external_id: "blogs:#{blog.id}",
           title: blog.title,
-          url: "#{configuration.public_base_url}/blogs/#{ERB::Util.url_encode(blog.slug)}",
+          url: blog_url(blog),
           content: content,
           content_blocks: content_blocks,
           content_type: "article",
@@ -72,8 +77,8 @@ module MosaicRelay
             blog_id: blog.id,
             slug: blog.slug,
             display_title: blog.display_title,
-            legacy_post_id: blog.legacy_post_id,
-            legacy_slug: blog.legacy_slug,
+            legacy_post_id: optional_attribute(blog, :legacy_post_id),
+            legacy_slug: optional_attribute(blog, :legacy_slug),
             author: blog.author_name,
             excerpt: PlainText.clean(blog.excerpt),
             seo_title: blog.seo_title,
@@ -82,7 +87,7 @@ module MosaicRelay
             created_at: iso8601(blog.created_at),
             categories: categories,
             tags: tags,
-            legacy_paths: blog.blog_legacy_redirects.active.order(:legacy_path).pluck(:legacy_path),
+            legacy_paths: legacy_paths(blog),
             cover_image: cover_image_metadata(blog),
             assets: cover_image_asset(blog),
             word_count: body.split.size
@@ -128,11 +133,68 @@ module MosaicRelay
         "#{configuration.public_base_url}#{page_path(page)}"
       end
 
+      def blog_url(blog)
+        path = if configuration.blog_path_builder.respond_to?(:call)
+          configuration.blog_path_builder.call(blog)
+        else
+          "/blogs/#{ERB::Util.url_encode(blog.slug)}"
+        end
+
+        return path if path.to_s.match?(%r{\Ahttps?://}i)
+
+        "#{configuration.public_base_url}#{path.to_s.start_with?("/") ? path : "/#{path}"}"
+      end
+
+      def blog_categories(blog)
+        if blog.respond_to?(:category_records)
+          Array(blog.category_records)
+        elsif blog.respond_to?(:blog_categories)
+          Array(blog.blog_categories)
+        elsif blog.respond_to?(:blog_category)
+          [ blog.blog_category ].compact
+        else
+          []
+        end
+      end
+
+      def ordered_blog_tags(blog)
+        return [] unless blog.respond_to?(:blog_tags)
+
+        tags = blog.blog_tags
+        tags = tags.order(:name) if tags.respond_to?(:order)
+        Array(tags)
+      end
+
+      def association_timestamps(record, association)
+        return [] unless record.respond_to?(association)
+
+        Array(record.public_send(association)).filter_map { |item| item.updated_at if item.respond_to?(:updated_at) }
+      end
+
+      def legacy_paths(blog)
+        return [] unless blog.respond_to?(:blog_legacy_redirects)
+
+        redirects = blog.blog_legacy_redirects
+        redirects = redirects.active if redirects.respond_to?(:active)
+        redirects = redirects.order(:legacy_path) if redirects.respond_to?(:order)
+
+        if redirects.respond_to?(:pluck)
+          redirects.pluck(:legacy_path)
+        else
+          Array(redirects).filter_map { |redirect| redirect.legacy_path if redirect.respond_to?(:legacy_path) }
+        end
+      end
+
+      def optional_attribute(record, attribute)
+        record.public_send(attribute) if record.respond_to?(attribute)
+      end
+
       def taxonomy(record)
         { id: record.id, name: record.name, slug: record.slug }
       end
 
       def cover_image_metadata(blog)
+        return unless blog.respond_to?(:cover_image)
         return unless blog.cover_image.attached?
 
         blob = blog.cover_image.blob
@@ -140,6 +202,7 @@ module MosaicRelay
       end
 
       def cover_image_asset(blog)
+        return [] unless blog.respond_to?(:cover_image)
         return [] unless blog.cover_image.attached?
         return [] unless asset_url_builder.respond_to?(:call)
 
@@ -219,7 +282,8 @@ module MosaicRelay
         return unless model
 
         relation = model
-        relation = relation.includes(:blog_category, :blog_categories, :blog_tags, :blog_taggings, :blog_category_assignments, :blog_legacy_redirects) if relation.respond_to?(:includes)
+        associations = blog_association_names(model)
+        relation = relation.includes(*associations) if relation.respond_to?(:includes) && associations.any?
         relation = relation.with_rich_text_content if relation.respond_to?(:with_rich_text_content)
         relation.find_by(id: id)
       end
@@ -244,6 +308,15 @@ module MosaicRelay
         return unless defined?(::Settings) && ::Settings.respond_to?(:bunny)
 
         ->(blob) { "#{::Settings.bunny.cdn}/#{blob.key}" }
+      end
+
+      def blog_association_names(model)
+        return [] unless model.respond_to?(:reflect_on_association)
+
+        %i[
+          blog_category blog_categories blog_tags blog_taggings
+          blog_category_assignments blog_legacy_redirects
+        ].select { |name| model.reflect_on_association(name) }
       end
     end
   end

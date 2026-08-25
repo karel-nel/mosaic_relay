@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_21_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_21_120000) do
   create_table "mosaic_relay_document_changes", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "external_id", null: false
@@ -18,8 +18,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_21_120000) do
     t.bigint "resource_id"
     t.string "resource_type", null: false
     t.datetime "updated_at", null: false
-    t.index ["external_id"], name: "index_mosaic_relay_document_changes_on_external_id"
-    t.index ["occurred_at", "id"], name: "index_mosaic_relay_document_changes_on_occurred_at_and_id"
-    t.index ["resource_type", "resource_id"], name: "idx_on_resource_type_resource_id_3ab9bd06f4"
+    t.index [ "external_id" ], name: "index_mosaic_relay_document_changes_on_external_id"
+    t.index [ "occurred_at", "id" ], name: "index_mosaic_relay_document_changes_on_occurred_at_and_id"
+    t.index [ "resource_type", "resource_id" ], name: "idx_on_resource_type_resource_id_3ab9bd06f4"
   end
 end
