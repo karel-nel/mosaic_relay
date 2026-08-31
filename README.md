@@ -16,16 +16,16 @@ environment variables. After installation and migration, sign in as a Mosaic
 administrator and visit `/admin/relay_settings` to:
 
 - generate the bearer token Relay uses to fetch documents;
-- set the document language and page size; and
+- set the document language and page size;
 - choose which Mosaic content sources and safe text fields Relay may ingest; and
 - paste Relay's public widget markup.
 
 The generated bearer token is shown once. Store it in Relay's HTTP source
 configuration with the document-feed endpoint below.
 
-Mosaic-specific model and extraction adapters remain code configuration:
-
-Applications can still configure Mosaic-specific model and extraction adapters:
+Mosaic-specific model and extraction adapters remain code configuration. A
+standard Mosaic installation can use the defaults; a customized installation
+can override the models, paths, and Pod schema:
 
 ```ruby
 MosaicRelay.configure do |config|
@@ -39,10 +39,11 @@ MosaicRelay.configure do |config|
 end
 ```
 
-For sites that expose content families beyond Pages and Blogs, a source provider
-can return source contracts dynamically. The provider is evaluated whenever the
-registry is read, so sources registered by host engines or initializers are
-available to Relay Settings and the feed without a cached source list:
+For sites or custom engines that expose content families beyond Pages and Blogs,
+a source provider can return source contracts dynamically. The provider is
+evaluated whenever the registry is read, so sources registered by host engines
+or initializers are available to Relay Settings and the feed without a cached
+source list:
 
 ```ruby
 MosaicRelay.configure do |config|
@@ -64,16 +65,16 @@ end
 ```
 
 `MosaicRelay.register_source` remains available for one-off registrations. Built-in
-Page and Blog paths use the host application's `page_path`/`blog_path` route
-helpers when available; custom paths can always be supplied with the path
-builders above. Both
-APIs use the same explicit public URL, publication scope, and field allowlist
-contract; neither exposes arbitrary application models automatically.
+Page and Blog paths use configured path builders or the host application's
+`blog_path` route helper when available. Both APIs use the same explicit public
+URL, publication scope, and field allowlist contract; neither exposes arbitrary
+application models automatically.
 
 ### Custom public sources
 
-Pages and Blogs are registered automatically. A host can expose another
-content family only with an explicit, public contract:
+Pages and Blogs are registered automatically when their models are available.
+A host or custom engine can expose another content family with an explicit,
+public contract:
 
 ```ruby
 MosaicRelay.register_source(
@@ -85,7 +86,9 @@ MosaicRelay.register_source(
   field_options: %i[summary body],
   scope: :published,
   collection_path: "/announcements",
-  record_path: ->(announcement) { "/announcements/#{announcement.slug}" }
+  record_path: ->(announcement) {
+    Rails.application.routes.url_helpers.announcement_path(announcement)
+  }
 )
 ```
 
@@ -94,8 +97,11 @@ URL and a representative public record URL. The source is selectable only when
 its model, scope, public collection URL, and record URL are present and both
 endpoints return successful public responses. A source with no public records is
 shown as unavailable until there is a record to validate.
-For incremental updates, add a normal host callback that calls
-`MosaicRelay::ChangeRecorder.record_source("announcements", self)`.
+Registered source models receive the generic Relay change callback automatically
+when MosaicRelay prepares the application. If a source is registered after
+preparation or uses a non-Active Record model, call
+`MosaicRelay::ChangeRecorder.record_source("announcements", self)` from the
+host callback instead.
 
 The `relay_chat` Pod renders only Relay's public widget mount. The mount strips
 inline script tags and loads Relay's public widget script once per page. Private
@@ -120,6 +126,62 @@ Relay fetches content from:
 ```text
 GET /mosaic_relay/api/relay/documents
 ```
+
+Configure Relay's HTTP source with the full absolute URL, for example:
+
+```text
+https://your-mosaic-site.example/mosaic_relay/api/relay/documents
+```
+
+Set its Authorization header to:
+
+```text
+Bearer <the token generated in Relay Settings>
+```
+
+Verify the feed before testing chat:
+
+```bash
+curl -i \
+  -H "Authorization: Bearer YOUR_MOSAIC_RELAY_SOURCE_TOKEN" \
+  "https://your-mosaic-site.example/mosaic_relay/api/relay/documents"
+```
+
+The response should be `200 OK` with a JSON document envelope containing
+`documents` and `cursor`. Relay must be able to reach this URL from its server;
+`localhost` is valid only when Relay and Mosaic run in the same network
+namespace.
+
+### Direct Relay widget
+
+Paste the public widget markup copied from Relay into the Relay widget field in
+Mosaic Settings:
+
+```html
+<niimble-relay-chat
+  relay-url="https://your-relay.example"
+  widget-key="nrw_public-widget-key"
+  title="Mosaic Assistant"
+  subtitle="Answers from this website"
+  accent-colour="#00C98D"
+  primary-colour="#5B34F1"
+  storage-key="mosaic-site">
+</niimble-relay-chat>
+```
+
+MosaicRelay loads Relay's public `niimble-relay-widget.js` from `relay-url`.
+The `widget-key` is public and is not an API secret. The widget displays answer
+citation markers and expandable source cards when Relay returns citations.
+
+For direct browser chat, add the exact website origin to the Relay tenant's
+**Allowed browser origins** list. For local development, for example, add:
+
+```text
+http://localhost:3001
+```
+
+Do not add a path or trailing slash. Without this allowlist entry, Relay will
+return `403 origin_not_allowed` and the browser will report a CORS error.
 
 The canonical public site URL is optional. The feed automatically derives an
 absolute origin from the incoming request; set the override only when a proxy,

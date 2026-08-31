@@ -3,12 +3,15 @@ MosaicRelay files are installed.
 Next steps:
   1. Run: bin/rails db:migrate
   2. Sign in as a Mosaic administrator and open: /admin/relay_settings
-  3. Generate Relay's document-feed bearer token, save the public site URL,
-     and paste Relay's public widget markup.
+  3. Generate Relay's document-feed bearer token and paste Relay's public
+     widget markup. The public site URL is derived from the incoming request;
+     it is not required in the settings screen.
   4. Configure Relay's HTTP source with the document feed endpoint and the
      generated bearer token.
-  5. Run: bin/rails mosaic_relay:install:pod_definition
-  6. For upgrades, run: bin/rails mosaic_relay:upgrade:report
+  5. For direct browser chat, add the exact Mosaic site origin to Relay's
+     Allowed browser origins list (for example, http://localhost:3001).
+  6. Run: bin/rails mosaic_relay:install:pod_definition
+  7. For upgrades, run: bin/rails mosaic_relay:upgrade:report
      Review its output before migrating legacy Pods or removing old host files.
 
 The document feed is mounted at:
