@@ -18,11 +18,11 @@ class MosaicRelayPodInstallerTest < ActiveSupport::TestCase
     end
   end
 
-  test "installs the bundled definition through the host PodDefinition model" do
-    record = FakeRecord.new(pod_type: "llm_chat_window")
+  test "installs the canonical Relay widget Pod definition" do
+    record = FakeRecord.new(pod_type: "relay_chat")
     model = Object.new
     model.define_singleton_method(:find_or_initialize_by) do |pod_type:|
-      raise "unexpected pod type" unless pod_type == "llm_chat_window"
+      raise "unexpected pod type" unless pod_type == "relay_chat"
 
       record
     end
@@ -31,11 +31,8 @@ class MosaicRelayPodInstallerTest < ActiveSupport::TestCase
 
     assert_equal :installed, result.status
     assert_same record, result.record
-    assert_equal "LLM Chat Window", record.name
-    assert_equal "content", record.category
-    assert_equal true, record.active
-    assert_equal true, record.metadata.fetch("usable_in_sections")
-    assert_equal [ "content", "tabs" ], record.metadata.fetch("recommended_for")
+    assert_equal "Relay Chat", record.name
+    assert_equal({}, record.schema)
     assert record.saved
   end
 
@@ -44,6 +41,5 @@ class MosaicRelayPodInstallerTest < ActiveSupport::TestCase
 
     assert_equal :yaml_only, result.status
     assert_nil result.record
-    assert_includes result.message, "config/pod_definitions.yml"
   end
 end

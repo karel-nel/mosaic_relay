@@ -1,93 +1,108 @@
 # MosaicRelay
 
-Mosaic integration for the Niimble Relay chat and document-ingestion APIs.
+MosaicRelay exposes Mosaic CMS content to Niimble Relay through an
+authenticated, cursor-based document feed. Relay owns the visitor-facing chat
+experience; this gem does not ship browser chat UI, styles, JavaScript, Action
+Cable, or a server-side chat proxy.
 
 ## Compatibility
 
-MosaicRelay supports Ruby 3.2+ and Rails 7.1, 7.2, 8.0, and 8.1. The test
-suite runs against each supported Rails release in CI.
+MosaicRelay supports Ruby 3.2+ and Rails 7.1, 7.2, 8.0, and 8.1.
 
 ## Configuration
 
-The gem reads its default configuration from environment variables. Credentials
-must remain server-side and must never be embedded in the browser Pod.
+Relay integration settings are stored in the application's database, not in
+environment variables. After installation and migration, sign in as a Mosaic
+administrator and visit `/admin/relay_settings` to:
 
-```text
-RELAY_SOURCE_TOKEN
-RELAY_PUBLIC_BASE_URL
-RELAY_CHAT_BASE_URL
-RELAY_CHAT_TOKEN
-RELAY_CHAT_TENANT_KEY
-RELAY_REDIS_URL
-RELAY_CHAT_OPEN_TIMEOUT_SECONDS
-RELAY_CHAT_READ_TIMEOUT_SECONDS
-RELAY_DEFAULT_LANGUAGE
-RELAY_DOCUMENTS_PAGE_SIZE
-```
+- generate the bearer token Relay uses to fetch documents;
+- set the document language and page size; and
+- choose which Mosaic content sources and safe text fields Relay may ingest; and
+- paste Relay's public widget markup.
 
-Applications can override the environment-derived values during initialization:
+The generated bearer token is shown once. Store it in Relay's HTTP source
+configuration with the document-feed endpoint below.
 
-```ruby
-MosaicRelay.configure do |config|
-  config.chat_read_timeout_seconds = 60
-end
-```
+Mosaic-specific model and extraction adapters remain code configuration:
 
-The content extractors automatically use Mosaic's `Admin::PodSchemas` when it
-is available. A host can provide an explicit schema resolver or asset URL
-builder when its CMS uses different adapters:
+Applications can still configure Mosaic-specific model and extraction adapters:
 
 ```ruby
 MosaicRelay.configure do |config|
   config.pod_schema_resolver = ->(pod_type) { MyPodSchemas.schema_for(pod_type) }
   config.asset_url_builder = ->(blob) { "https://cdn.example/#{blob.key}" }
-  config.blog_path_builder = ->(blog) { "/blog/#{ERB::Util.url_encode(blog.slug)}" }
+  config.blog_path_builder = ->(blog) { "/articles/#{ERB::Util.url_encode(blog.slug)}" }
+  config.page_path_builder = ->(page) { page.slug == "home" ? "/" : "/site/#{ERB::Util.url_encode(page.slug)}" }
   config.page_model = MyPage
   config.blog_model = MyBlog
   config.page_element_model = MyPageElement
 end
 ```
 
-Redis is used to coordinate chat credit availability. The generated initializer
-uses `RELAY_REDIS_URL` and falls back to `REDIS_URL` when either is present.
-Action Cable is optional; mount `ActionCable.server => "/cable"` in the host
-routes if real-time availability updates are required.
-
-When the configured Mosaic models are present, the engine automatically adds
-change-ledger callbacks for pages, blogs, pods, page structure, and blog
-taxonomy/association records.
-
-Blogs with a future `published_at` are excluded from the initial feed. The
-engine schedules `MosaicRelay::ScheduledBlogPublicationJob`, which records a
-new change when the blog becomes displayable so the next incremental feed
-request ingests it.
-
-## Usage
-The gem exposes the Relay chat integration and the canonical document
-contract used by the Mosaic source feed. The document feed uses an append-only
-change ledger in `mosaic_relay_document_changes`; run the engine migrations in
-the host application before enabling ingestion. See
-`docs/canonical_document_contract.md` for the feed shape and synchronization
-rules.
-
-## Installation
-Add this line to your application's Gemfile:
+For sites that expose content families beyond Pages and Blogs, a source provider
+can return source contracts dynamically. The provider is evaluated whenever the
+registry is read, so sources registered by host engines or initializers are
+available to Relay Settings and the feed without a cached source list:
 
 ```ruby
-gem "mosaic_relay"
+MosaicRelay.configure do |config|
+  config.source_provider = -> {
+    [
+      {
+        key: "announcements",
+        model: Announcement,
+        title: :title,
+        fields: %i[summary body],
+        field_options: %i[summary body],
+        scope: :published,
+        collection_path: "/announcements",
+        record_path: ->(record) { "/announcements/#{record.slug}" }
+      }
+    ]
+  }
+end
 ```
 
-And then execute:
-```bash
-$ bundle
+`MosaicRelay.register_source` remains available for one-off registrations. Built-in
+Page and Blog paths use the host application's `page_path`/`blog_path` route
+helpers when available; custom paths can always be supplied with the path
+builders above. Both
+APIs use the same explicit public URL, publication scope, and field allowlist
+contract; neither exposes arbitrary application models automatically.
+
+### Custom public sources
+
+Pages and Blogs are registered automatically. A host can expose another
+content family only with an explicit, public contract:
+
+```ruby
+MosaicRelay.register_source(
+  key: "announcements",
+  label: "Announcements",
+  model: Announcement,
+  title: :title,
+  fields: %i[summary body],
+  field_options: %i[summary body],
+  scope: :published,
+  collection_path: "/announcements",
+  record_path: ->(announcement) { "/announcements/#{announcement.slug}" }
+)
 ```
 
-Or install it yourself as:
-```bash
-$ gem install mosaic_relay
-```
+Relay Settings performs anonymous, in-process `GET` requests for each collection
+URL and a representative public record URL. The source is selectable only when
+its model, scope, public collection URL, and record URL are present and both
+endpoints return successful public responses. A source with no public records is
+shown as unavailable until there is a record to validate.
+For incremental updates, add a normal host callback that calls
+`MosaicRelay::ChangeRecorder.record_source("announcements", self)`.
 
-Install the engine integration into the Mosaic application:
+The `relay_chat` Pod renders only Relay's public widget mount. The mount strips
+inline script tags and loads Relay's public widget script once per page. Private
+chat credentials must never be included in this markup. See [the migration
+contract](docs/migration_contract.md).
+
+## Installation
 
 ```bash
 bin/rails generate mosaic_relay:install
@@ -95,21 +110,53 @@ bin/rails db:migrate
 bin/rails mosaic_relay:install:pod_definition
 ```
 
-The generator mounts the engine, installs the change-ledger migration and
-initializer, registers the Stimulus controller, installs overridable Pod views
-and styles, and merges the `llm_chat_window` definition into
-`config/pod_definitions.yml`. Existing host overrides are preserved.
+The installer mounts the engine, installs the document-change ledger and Relay
+Settings migrations, and adds the minimal `relay_chat` Pod view and definition.
+It does not create a chat UI, browser controller, stylesheet, Action Cable
+configuration, or server-side chat proxy.
 
-The installer validates that it is running from a Rails application root and
-does not overwrite an existing initializer, Pod view, controller, or stylesheet.
+Relay fetches content from:
 
-Run the generator from the consuming Mosaic application, not from this gem's
-source directory. The Pod installation task updates the host's
-`PodDefinition` record when that model is available and otherwise leaves the
-installed YAML definition as the source of truth.
+```text
+GET /mosaic_relay/api/relay/documents
+```
 
-## Contributing
-Contribution directions go here.
+The canonical public site URL is optional. The feed automatically derives an
+absolute origin from the incoming request; set the override only when a proxy,
+load balancer, or canonical-domain redirect means that request host is not the
+public site visitors use.
+
+## Upgrading from the legacy chat implementation
+
+The gem no longer provides the `llm_chat_window` UI or `/api/relay/chat`
+endpoints. The old installer copied templates, JavaScript, and styles into host
+applications; those copies are intentionally not deleted automatically.
+
+Before deploying, remove or replace any host copies of:
+
+- `app/views/pods/shared/_llm_chat_window.html.erb`
+- `app/views/pods/shared/_llm_chat_footer.html.erb`
+- `app/javascript/controllers/mosaic_relay_llm_chat_controller.js`
+- `app/assets/stylesheets/mosaic_relay/llm_chat.css`
+
+The `relay_chat` Pod replaces these files without reintroducing a Mosaic-owned
+chat UI.
+
+Run the report before changing an existing installation:
+
+```bash
+bin/rails mosaic_relay:upgrade:report
+```
+
+After reviewing its output, migrate the known legacy Pod records explicitly:
+
+```bash
+bin/rails mosaic_relay:upgrade:migrate_legacy_pods
+```
+
+The report never deletes host files. Remove or replace any files it lists only
+after confirming the Relay widget is configured.
 
 ## License
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+
+The gem is available under the [MIT License](MIT-LICENSE).

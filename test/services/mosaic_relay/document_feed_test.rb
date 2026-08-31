@@ -42,6 +42,10 @@ class MosaicRelayDocumentFeedTest < ActiveSupport::TestCase
       self.class.new(@records.first(count))
     end
 
+    def first
+      @records.first
+    end
+
     def to_a
       @records.dup
     end
@@ -58,13 +62,27 @@ class MosaicRelayDocumentFeedTest < ActiveSupport::TestCase
       def visible
         Relation.new(records).visible
       end
+
+      def all
+        Relation.new(records)
+      end
+
+      def find_by(id:)
+        Array(records).find { |record| record.id == id }
+      end
     end
   end
 
   PageModel = Class.new(Model)
   BlogModel = Class.new(Model)
+  AnnouncementModel = Class.new(Model)
 
   Record = Struct.new(:id, keyword_init: true)
+  AnnouncementRecord = Struct.new(:id, :title, :summary, :private_notes, :updated_at, :published_value, keyword_init: true) do
+    def published?
+      published_value != false
+    end
+  end
   BlogRecord = Struct.new(:id, :visible_value, :published_at, keyword_init: true) do
     def visible?
       visible_value
@@ -77,9 +95,12 @@ class MosaicRelayDocumentFeedTest < ActiveSupport::TestCase
   Change = Struct.new(:resource_type, :resource_id, :external_id)
 
   setup do
+    MosaicRelay::SourceRegistry.reset!
     MosaicRelay::DocumentChange.delete_all
+    MosaicRelay::RelaySetting.delete_all
     PageModel.records = []
     BlogModel.records = []
+    AnnouncementModel.records = []
     MosaicRelay.configure do |configuration|
       configuration.page_model = PageModel
       configuration.blog_model = BlogModel
@@ -88,6 +109,8 @@ class MosaicRelayDocumentFeedTest < ActiveSupport::TestCase
 
   teardown do
     MosaicRelay.reset_configuration!
+    MosaicRelay::SourceRegistry.reset!
+    MosaicRelay::RelaySetting.delete_all
   end
 
   test "walks a paginated snapshot and then switches to ledger events" do
@@ -172,6 +195,68 @@ class MosaicRelayDocumentFeedTest < ActiveSupport::TestCase
     end
   end
 
+  test "serializes a registered source with only the selected fields" do
+    MosaicRelay.register_source(
+      key: "announcements",
+      model: AnnouncementModel,
+      title: :title,
+      fields: %i[summary private_notes],
+      field_options: %i[summary private_notes],
+      scope: :published,
+      collection_path: "/announcements",
+      record_path: ->(record) { "/announcements/#{record.id}" }
+    )
+    AnnouncementModel.records = [
+      AnnouncementRecord.new(
+        id: 3,
+        title: "Road closure",
+        summary: "The north entrance is closed.",
+        private_notes: "Operations only.",
+        updated_at: Time.current
+      )
+    ]
+    MosaicRelay::RelaySetting.current.update!(
+      public_base_url: "https://mosaic.example",
+      source_types: [ "announcements" ],
+      source_field_mappings: { "announcements" => [ "summary" ] }
+    )
+
+    response = MosaicRelay::DocumentFeed.new(cursor: nil, page_size: 10).call
+    document = response.fetch("documents").sole
+
+    assert_equal "announcements:3", document.fetch("external_id")
+    assert_includes document.fetch("content"), "The north entrance is closed."
+    refute_includes document.fetch("content"), "Operations only."
+  end
+
+  test "returns a tombstone when a custom source record is no longer public" do
+    register_announcements_source
+    record = AnnouncementRecord.new(id: 3, title: "Road closure", summary: "Closed", updated_at: Time.current, published_value: true)
+    AnnouncementModel.records = [ record ]
+    MosaicRelay::RelaySetting.current.update!(source_types: [ "announcements" ])
+    change = MosaicRelay::DocumentChange.create!(external_id: "announcements:3", resource_type: AnnouncementModel.name, resource_id: 3, occurred_at: Time.current)
+    record.published_value = false
+
+    response = MosaicRelay::DocumentFeed.new(cursor: MosaicRelay::CursorCodec.encode(mode: "events", after: change.id - 1)).call
+
+    assert_equal [ { "external_id" => "announcements:3", "deleted" => true } ], response.fetch("documents")
+  end
+
+  test "delivers source-disable tombstones even after the source is no longer selected" do
+    MosaicRelay::RelaySetting.current.update!(source_types: [])
+    change = MosaicRelay::DocumentChange.create!(
+      external_id: "announcements:3",
+      resource_type: "Announcement",
+      resource_id: 3,
+      occurred_at: Time.current,
+      deleted: true
+    )
+
+    response = MosaicRelay::DocumentFeed.new(cursor: MosaicRelay::CursorCodec.encode(mode: "events", after: change.id - 1)).call
+
+    assert_equal [ { "external_id" => "announcements:3", "deleted" => true } ], response.fetch("documents")
+  end
+
   test "rejects invalid feed state values" do
     invalid_cursor = MosaicRelay::CursorCodec.encode(mode: "snapshot", phase: "unknown", last_id: 0, high_water: 0)
 
@@ -187,18 +272,31 @@ class MosaicRelayDocumentFeedTest < ActiveSupport::TestCase
 
   private
 
+  def register_announcements_source
+    MosaicRelay.register_source(
+      key: "announcements",
+      model: AnnouncementModel,
+      title: :title,
+      fields: %i[summary private_notes],
+      field_options: %i[summary private_notes],
+      scope: :published,
+      collection_path: "/announcements",
+      record_path: ->(record) { "/announcements/#{record.id}" }
+    )
+  end
+
   def stub_serializers
     original_page = MosaicRelay::DocumentSerializer.method(:for_page)
     original_blog = MosaicRelay::DocumentSerializer.method(:for_blog)
     original_change = MosaicRelay::DocumentSerializer.method(:for_change)
 
-    MosaicRelay::DocumentSerializer.define_singleton_method(:for_page) do |record|
+    MosaicRelay::DocumentSerializer.define_singleton_method(:for_page) do |record, **|
       { "external_id" => "pages:#{record.id}" }
     end
-    MosaicRelay::DocumentSerializer.define_singleton_method(:for_blog) do |record|
+    MosaicRelay::DocumentSerializer.define_singleton_method(:for_blog) do |record, **|
       { "external_id" => "blogs:#{record.id}" }
     end
-    MosaicRelay::DocumentSerializer.define_singleton_method(:for_change) do |change|
+    MosaicRelay::DocumentSerializer.define_singleton_method(:for_change) do |change, **|
       { "external_id" => change.external_id, "change_id" => change.id }
     end
 

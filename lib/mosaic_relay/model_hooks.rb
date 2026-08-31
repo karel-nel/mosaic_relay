@@ -25,6 +25,13 @@ module MosaicRelay
         model = configured_model(model_name) || model_name.safe_constantize
         model.include(concern) if model && !(model < concern)
       end
+
+      SourceRegistry.known.each do |source|
+        next if SourceRegistry.default_source_types.include?(source.key)
+
+        model = source.model
+        model.include(MosaicRelay::TracksRegisteredSourceChanges) if model && !(model < MosaicRelay::TracksRegisteredSourceChanges)
+      end
     end
 
     def configured_model(model_name)

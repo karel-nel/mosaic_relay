@@ -13,28 +13,10 @@ class MosaicRelayInstallGeneratorTest < Rails::Generators::TestCase
     write_host_file("Gemfile", "source \"https://rubygems.org\"\n")
     write_host_file("config/application.rb", "class Application < Rails::Application; end\n")
     write_host_file("config/routes.rb", "Rails.application.routes.draw do\nend\n")
-    write_host_file(
-      "app/javascript/controllers/index.js",
-      "import { application } from \"./application\"\n"
-    )
-    write_host_file(
-      "app/assets/stylesheets/application.tailwind.css",
-      "@import \"tailwindcss\";\n"
-    )
-    write_host_file(
-      "config/pod_definitions.yml",
-      "---\npod_definitions:\n  rich_text_block:\n    name: Rich Text Block\n"
-    )
   end
 
-  test "installs the Mosaic Relay host integration" do
+  test "installs the document feed and minimal Relay widget mount" do
     run_generator
-
-    assert_file "config/initializers/mosaic_relay.rb" do |content|
-      assert_includes content, "MosaicRelay.configure"
-      assert_not_includes content, "RELAY_CHAT_TOKEN ="
-      assert_includes content, "RELAY_REDIS_URL"
-    end
 
     assert_file "config/routes.rb" do |content|
       assert_includes content, 'mount MosaicRelay::Engine => "/mosaic_relay"'
@@ -44,26 +26,31 @@ class MosaicRelayInstallGeneratorTest < Rails::Generators::TestCase
       assert_includes content, "create_table :mosaic_relay_document_changes"
     end
 
-    assert_file "app/javascript/controllers/mosaic_relay_llm_chat_controller.js"
-    assert_file "app/javascript/controllers/index.js" do |content|
-      assert_includes content, 'application.register("llm-chat", MosaicRelayLlmChatController)'
+    assert_migration "db/migrate/create_mosaic_relay_settings.rb" do |content|
+      assert_includes content, "create_table :mosaic_relay_settings"
     end
 
-    assert_file "app/views/pods/shared/_llm_chat_window.html.erb"
-    assert_file "app/views/pods/shared/_llm_chat_footer.html.erb"
-    assert_file "app/assets/stylesheets/mosaic_relay/llm_chat.css"
-    assert_file "app/assets/stylesheets/application.tailwind.css" do |content|
-      assert content.start_with?('@import "./mosaic_relay/llm_chat.css";')
+    assert_migration "db/migrate/add_source_selection_to_mosaic_relay_settings.rb" do |content|
+      assert_includes content, "source_field_mappings"
     end
 
+    assert_migration "db/migrate/add_deleted_to_mosaic_relay_document_changes.rb" do |content|
+      assert_includes content, "add_column :mosaic_relay_document_changes, :deleted"
+    end
+
+    assert_file "app/views/pods/shared/_relay_chat.html.erb"
     assert_file "config/pod_definitions.yml" do |content|
       definitions = YAML.safe_load(content)
-      assert definitions.fetch("pod_definitions").key?("rich_text_block")
-      assert definitions.fetch("pod_definitions").key?("llm_chat_window")
+      assert definitions.fetch("pod_definitions").key?("relay_chat")
     end
+
+    refute File.exist?(File.join(destination_root, "config/initializers/mosaic_relay.rb"))
+    refute File.exist?(File.join(destination_root, "app/javascript/controllers/mosaic_relay_llm_chat_controller.js"))
+    refute File.exist?(File.join(destination_root, "app/views/pods/shared/_llm_chat_window.html.erb"))
+    refute File.exist?(File.join(destination_root, "app/assets/stylesheets/mosaic_relay/llm_chat.css"))
   end
 
-  test "can be run twice without duplicate registrations" do
+  test "can be run twice without duplicate routes, migrations, or Pod definitions" do
     run_generator
     run_generator
 
@@ -71,16 +58,21 @@ class MosaicRelayInstallGeneratorTest < Rails::Generators::TestCase
       assert_equal 1, content.scan('mount MosaicRelay::Engine => "/mosaic_relay"').length
     end
 
-    assert_file "app/javascript/controllers/index.js" do |content|
-      assert_equal 1, content.scan('application.register("llm-chat"').length
-    end
-
-    assert_file "config/pod_definitions.yml" do |content|
-      assert_equal 1, content.scan(/^  llm_chat_window:/).length
-    end
-
     migrations = Dir.glob(File.join(destination_root, "db/migrate/*_create_mosaic_relay_document_changes.rb"))
     assert_equal 1, migrations.length
+
+    settings_migrations = Dir.glob(File.join(destination_root, "db/migrate/*_create_mosaic_relay_settings.rb"))
+    assert_equal 1, settings_migrations.length
+
+    source_migrations = Dir.glob(File.join(destination_root, "db/migrate/*_add_source_selection_to_mosaic_relay_settings.rb"))
+    assert_equal 1, source_migrations.length
+
+    deletion_migrations = Dir.glob(File.join(destination_root, "db/migrate/*_add_deleted_to_mosaic_relay_document_changes.rb"))
+    assert_equal 1, deletion_migrations.length
+
+    assert_file "config/pod_definitions.yml" do |content|
+      assert_equal 1, content.scan(/^  relay_chat:/).length
+    end
   end
 
   test "mounts before a conventional CMS catch-all route" do
@@ -101,46 +93,72 @@ class MosaicRelayInstallGeneratorTest < Rails::Generators::TestCase
     end
   end
 
+  test "adds an idempotent Relay Settings item to standard admin sidebars" do
+    write_host_file(
+      "app/views/layouts/admin/shared/_desktop_sidebar_content.erb",
+      "<nav>\n  existing links\n</nav>\n"
+    )
+    write_host_file(
+      "app/views/layouts/admin/shared/_mobile_sidebar_content.html.erb",
+      "<nav>\n  existing links\n</nav>\n"
+    )
+
+    run_generator
+    run_generator
+
+    [
+      "app/views/layouts/admin/shared/_desktop_sidebar_content.erb",
+      "app/views/layouts/admin/shared/_mobile_sidebar_content.html.erb"
+    ].each do |path|
+      assert_file path do |content|
+        assert_equal 1, content.scan("mosaic_relay_settings_path").length
+        assert_includes content, 'name: "Relay Settings"'
+      end
+    end
+  end
+
+  test "places Relay Settings immediately before a Global sidebar item" do
+    sidebar = <<~ERB
+      <nav>
+        <%= render partial: 'layouts/admin/shared/nav_item', locals: {
+          name: "Global",
+          path: admin_settings_path,
+          icon: "settings",
+          current: controller_name == "settings"
+        } %>
+      </nav>
+    ERB
+    write_host_file("app/views/layouts/admin/shared/_desktop_sidebar_content.erb", sidebar)
+
+    run_generator
+
+    assert_file "app/views/layouts/admin/shared/_desktop_sidebar_content.erb" do |content|
+      assert_operator content.index('name: "Relay Settings"'), :<, content.index('name: "Global"')
+    end
+  end
+
   test "refuses to install into the gem source directory" do
     routes_before = File.read(MosaicRelay::Engine.root.join("config/routes.rb"))
     install_generator = MosaicRelay::Generators::InstallGenerator.new(
-      [],
-      {},
-      destination_root: MosaicRelay::Engine.root.to_s
+      [], {}, destination_root: MosaicRelay::Engine.root.to_s
     )
 
     error = assert_raises(Thor::Error) { install_generator.ensure_host_application }
 
     assert_includes error.message, "consuming Mosaic application"
     assert_equal routes_before, File.read(MosaicRelay::Engine.root.join("config/routes.rb"))
-    assert_not File.exist?(MosaicRelay::Engine.root.join("config/initializers/mosaic_relay.rb"))
   end
 
   test "refuses to install outside a Rails application root" do
-    write_host_file("config/routes.rb", "Rails.application.routes.draw do\nend\n")
     FileUtils.rm_f(File.join(destination_root, "Gemfile"))
     FileUtils.rm_f(File.join(destination_root, "config/application.rb"))
 
     install_generator = MosaicRelay::Generators::InstallGenerator.new(
-      [],
-      {},
-      destination_root: destination_root
+      [], {}, destination_root: destination_root
     )
     error = assert_raises(Thor::Error) { install_generator.ensure_host_application }
 
     assert_includes error.message, "Rails application root"
-    assert_not File.exist?(File.join(destination_root, "config/initializers/mosaic_relay.rb"))
-  end
-
-  test "preserves an existing initializer" do
-    write_host_file("config/initializers/mosaic_relay.rb", "MosaicRelay.configure { |config| config.chat_tenant_key = \"custom\" }\n")
-
-    run_generator
-
-    assert_file "config/initializers/mosaic_relay.rb" do |content|
-      assert_includes content, 'config.chat_tenant_key = "custom"'
-      assert_not_includes content, "RELAY_REDIS_URL"
-    end
   end
 
   private

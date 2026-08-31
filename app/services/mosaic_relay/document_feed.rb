@@ -4,9 +4,12 @@ module MosaicRelay
   class DocumentFeed
     SNAPSHOT_PHASES = %w[pages blogs].freeze
 
-    def initialize(cursor:, page_size: nil)
+    def initialize(cursor:, page_size: nil, public_base_url: nil)
       @cursor = CursorCodec.decode(cursor)
       @page_size = page_size.nil? ? configuration.page_size : page_size.to_i
+      @source_types = configuration.source_types
+      @source_field_mappings = configuration.source_field_mappings
+      @public_base_url = public_base_url.to_s.strip.presence || configuration.public_base_url
     end
 
     def call
@@ -23,12 +26,21 @@ module MosaicRelay
 
     private
 
-    attr_reader :cursor, :page_size
+    attr_reader :cursor, :page_size, :source_field_mappings, :public_base_url
+
+    def source_types
+      @source_types || SNAPSHOT_PHASES
+    end
 
     def initial_snapshot
+      if source_types.empty?
+        cursor = CursorCodec.encode("mode" => "events", "after" => DocumentChange.maximum(:id).to_i)
+        return envelope([], cursor: cursor)
+      end
+
       snapshot_page(
         "mode" => "snapshot",
-        "phase" => "pages",
+        "phase" => source_types.first,
         "last_id" => 0,
         "high_water" => DocumentChange.maximum(:id).to_i
       )
@@ -36,7 +48,7 @@ module MosaicRelay
 
     def snapshot_page(state)
       phase = state.fetch("phase")
-      raise CursorCodec::InvalidCursor unless SNAPSHOT_PHASES.include?(phase)
+      raise CursorCodec::InvalidCursor unless source_types.include?(phase)
 
       documents = []
       current_phase = phase
@@ -73,8 +85,12 @@ module MosaicRelay
 
     def event_page(state)
       after = cursor_integer(state.fetch("after", 0))
-      changes = DocumentChange.after_sequence(after).ordered.limit(page_size).to_a
-      documents = changes.map { |change| DocumentSerializer.for_change(change) }
+      changes = DocumentChange.after_sequence(after).ordered.to_a
+      changes = changes.select do |change|
+        change.deleted? || source_types.any? { |source| change.external_id.to_s.start_with?("#{source}:") }
+      end
+      changes = changes.first(page_size)
+      documents = changes.map { |change| document_for_change(change) }
       checkpoint = changes.last&.id || after
       next_cursor = if changes.length == page_size
         CursorCodec.encode("mode" => "events", "after" => checkpoint)
@@ -92,32 +108,33 @@ module MosaicRelay
     end
 
     def snapshot_scope(phase, last_id)
-      case phase
-      when "pages"
-        model = page_model
-        return unless model
+      source = SourceRegistry.fetch(phase)
+      model = source&.model
+      return unless source && model
 
-        model.published.where("pages.id > ?", last_id).order(:id)
-      when "blogs"
-        model = blog_model
-        return unless model
-
-        scope = model.visible.published.where("blogs.id > ?", last_id)
-        scope = scope.includes(*blog_association_names(model)) if scope.respond_to?(:includes) && blog_association_names(model).any?
-        scope = scope.with_rich_text_content if scope.respond_to?(:with_rich_text_content)
-        scope.order(:id)
-      end
+      scope = SourceRegistry.public_records(source)
+      scope = apply_after_id(scope, model, last_id)
+      scope = scope.includes(*blog_association_names(model)) if phase == "blogs" && scope.respond_to?(:includes) && blog_association_names(model).any?
+      scope = scope.with_rich_text_content if phase == "blogs" && scope.respond_to?(:with_rich_text_content)
+      scope.order(:id)
+    rescue ActiveRecord::StatementInvalid, NoMethodError
+      nil
     end
 
     def serialize_snapshot_record(record, phase)
+      source = SourceRegistry.fetch(phase)
+      fields = fields_for(source)
+
       case phase
-      when "pages" then DocumentSerializer.for_page(record)
-      when "blogs" then DocumentSerializer.for_blog(record)
+      when "pages" then DocumentSerializer.for_page(record, fields: fields, public_base_url: public_base_url)
+      when "blogs" then DocumentSerializer.for_blog(record, fields: fields, public_base_url: public_base_url)
+      else
+        DocumentSerializer.for_source(record, source, fields: fields, public_base_url: public_base_url)
       end
     end
 
     def next_phase(phase)
-      SNAPSHOT_PHASES[SNAPSHOT_PHASES.index(phase) + 1]
+      source_types[source_types.index(phase) + 1]
     end
 
     def envelope(documents, cursor:, next_cursor: nil)
@@ -151,6 +168,41 @@ module MosaicRelay
         blog_category blog_categories blog_tags blog_taggings
         blog_category_assignments blog_legacy_redirects
       ].select { |name| model.reflect_on_association(name) }
+    end
+
+    def apply_after_id(scope, model, last_id)
+      return scope.where(model.arel_table[:id].gt(last_id)) if model.respond_to?(:arel_table)
+
+      scope.where("id > ?", last_id)
+    end
+
+    def fields_for(source)
+      selected = source_field_mappings[source.key]
+      selected.present? ? selected.map(&:to_sym) : Array(source.fields).map(&:to_sym)
+    end
+
+    def document_for_change(change)
+      return tombstone(change) if change.deleted?
+
+      source_key = change.external_id.to_s.split(":", 2).first
+      if %w[pages blogs].include?(source_key)
+        source = SourceRegistry.fetch(source_key)
+        return DocumentSerializer.for_change(change, fields: fields_for(source), public_base_url: public_base_url)
+      end
+
+      source = SourceRegistry.fetch(source_key) || SourceRegistry.fetch(SourceRegistry.source_type_for(change.resource_type))
+      return DocumentSerializer.for_change(change, public_base_url: public_base_url) unless source
+
+      record = source.model&.find_by(id: change.resource_id)
+      return tombstone(change) unless SourceRegistry.public_record?(source, record)
+
+      DocumentSerializer.for_source(record, source, fields: fields_for(source), public_base_url: public_base_url) || { "external_id" => change.external_id, "deleted" => true }
+    rescue ActiveRecord::StatementInvalid, NoMethodError
+      { "external_id" => change.external_id, "deleted" => true }
+    end
+
+    def tombstone(change)
+      { "external_id" => change.external_id, "deleted" => true }
     end
   end
 end

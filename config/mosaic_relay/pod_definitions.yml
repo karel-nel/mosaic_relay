@@ -1,8 +1,8 @@
 ---
 pod_definitions:
-  llm_chat_window:
-    name: LLM Chat Window
-    description: A chat window for interacting with the LLM
+  relay_chat:
+    name: Relay Chat
+    description: Mounts the Relay-owned chat widget.
     category: content
     icon: chat
     usable_in_sections: true
@@ -10,11 +10,4 @@ pod_definitions:
     recommended_for:
       - content
       - tabs
-    schema:
-      Title:
-        type: text
-        label: Title
-        position: 10
-        required: true
-        placeholder: Enter the tab title...
-        inspector_group: content
+    schema: {}

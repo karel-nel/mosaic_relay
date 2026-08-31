@@ -8,5 +8,9 @@ module MosaicRelay
 
     scope :after_sequence, ->(sequence) { where("id > ?", sequence.to_i) }
     scope :ordered, -> { order(:id) }
+
+    def deleted?
+      self[:deleted] == true
+    end
   end
 end

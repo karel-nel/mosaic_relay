@@ -1,0 +1,64 @@
+<% source = source_status.source %>
+<% source_ingestible = source_status.ingestible? %>
+<% source_key = source.key %>
+<% field_options = Array(source.field_options).map(&:to_s) %>
+<% selected_fields = @relay_setting.source_field_mappings.fetch(source_key, Array(source.fields).map(&:to_s)) %>
+
+<div class="rr-source-config">
+  <div class="rr-source-option<%= " rr-source-option--fields" if source_ingestible && field_options.present? %><%= " rr-source-option--unavailable" unless source_ingestible %>">
+    <label class="rr-source-toggle">
+      <%= form.check_box :source_types,
+                         {
+                           multiple: true,
+                           include_hidden: false,
+                           class: "rr-checkbox",
+                           disabled: !source_ingestible,
+                           data: { rr_source_toggle: true }
+                         },
+                         source_key,
+                         nil %>
+
+      <span class="rr-source-content">
+        <span class="rr-source-name"><%= source.label %></span>
+        <span class="rr-source-description"><%= source_ingestible ? source.description : "Unavailable: #{source_status.reason}" %></span>
+      </span>
+
+      <span class="rr-source-check" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </span>
+    </label>
+
+    <% if source_ingestible && field_options.present? %>
+      <details class="rr-source-fields" data-rr-source-fields hidden>
+        <summary>
+          <span class="rr-source-fields-meta">
+            <span class="rr-source-field-count" data-rr-field-count><%= selected_fields.length %></span>
+            <span>fields</span>
+            <svg class="rr-source-fields-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m6 9 6 6 6-6"/>
+            </svg>
+          </span>
+        </summary>
+
+        <p class="rr-source-fields-copy">Choose the text Relay should use for this source.</p>
+
+        <%= hidden_field_tag "relay_setting[source_field_mappings][#{source_key}][]", "" %>
+
+        <div class="rr-source-field-list">
+          <% field_options.each do |field| %>
+            <label class="rr-source-field-option">
+              <%= check_box_tag "relay_setting[source_field_mappings][#{source_key}][]",
+                                field,
+                                selected_fields.include?(field),
+                                class: "rr-source-field-checkbox",
+                                disabled: !source_ingestible %>
+              <span><%= field.humanize %></span>
+            </label>
+          <% end %>
+        </div>
+      </details>
+    <% end %>
+  </div>
+</div>

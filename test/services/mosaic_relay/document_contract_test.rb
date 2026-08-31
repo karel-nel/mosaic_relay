@@ -57,4 +57,12 @@ class MosaicRelayDocumentContractTest < ActiveSupport::TestCase
 
     assert_includes error.message, "content_hash"
   end
+
+  test "rejects documents with a relative URL" do
+    error = assert_raises MosaicRelay::DocumentContract::InvalidDocument do
+      MosaicRelay::DocumentContract.validate!(VALID_DOCUMENT.merge("url" => "/race-day"))
+    end
+
+    assert_equal "url must be an absolute HTTP(S) URL", error.message
+  end
 end

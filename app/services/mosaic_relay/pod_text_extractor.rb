@@ -33,7 +33,7 @@ module MosaicRelay
       resolved = if @schema_resolver.respond_to?(:call)
         @schema_resolver.call(pod_type)
       elsif defined?(::Admin::PodSchemas) && ::Admin::PodSchemas.respond_to?(:schema_for)
-        ::Admin::PodSchemas.schema_for(pod_type, include_inactive: true)
+        schema_for_from_host(pod_type)
       elsif defined?(::PodDefinition) && ::PodDefinition.respond_to?(:find_by)
         ::PodDefinition.find_by(pod_type: pod_type)&.schema
       end
@@ -41,6 +41,15 @@ module MosaicRelay
       schema = resolved.to_h
       nested_schema = schema["schema"] || schema[:schema]
       nested_schema.is_a?(Hash) ? nested_schema : schema
+    end
+
+    def schema_for_from_host(pod_type)
+      ::Admin::PodSchemas.schema_for(pod_type, include_inactive: true)
+    rescue ArgumentError => e
+      raise unless e.message.match?(/wrong number of arguments|unknown keyword/)
+
+      # Older Mosaic installations expose only the original one-argument API.
+      ::Admin::PodSchemas.schema_for(pod_type)
     end
 
     def extract_hash(values, schema)

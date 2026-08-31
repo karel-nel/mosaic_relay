@@ -1,61 +1,60 @@
 module MosaicRelay
   class Configuration
-    DEFAULT_CHAT_OPEN_TIMEOUT_SECONDS = 5
-    DEFAULT_CHAT_READ_TIMEOUT_SECONDS = 45
     DEFAULT_LANGUAGE = "en"
     DEFAULT_PAGE_SIZE = 25
 
     attr_accessor :source_token,
                   :public_base_url,
-                  :chat_base_url,
-                  :chat_token,
-                  :chat_tenant_key,
-                  :chat_open_timeout_seconds,
-                  :chat_read_timeout_seconds,
+                  :widget_markup,
                   :default_language,
                   :page_size,
-                  :redis,
-                  :broadcaster,
+                  :source_types,
+                  :source_field_mappings,
                   :pod_schema_resolver,
                   :asset_url_builder,
                   :blog_path_builder,
+                  :page_path_builder,
+                  :source_provider,
                   :page_model,
                   :blog_model,
                   :page_element_model
 
-    def self.from_env(env = ENV)
+    ADAPTER_ATTRIBUTES = %i[
+      pod_schema_resolver asset_url_builder blog_path_builder page_path_builder source_provider
+      page_model blog_model page_element_model
+    ].freeze
+
+    def self.from_settings(settings = nil)
+      return new unless RelaySetting.table_available?
+
+      settings ||= RelaySetting.current
       new(
-        source_token: env["RELAY_SOURCE_TOKEN"],
-        public_base_url: env.fetch("RELAY_PUBLIC_BASE_URL", ""),
-        chat_base_url: env.fetch("RELAY_CHAT_BASE_URL", ""),
-        chat_token: env["RELAY_CHAT_TOKEN"],
-        chat_tenant_key: env.fetch("RELAY_CHAT_TENANT_KEY", "mosaic"),
-        chat_open_timeout_seconds: env.fetch("RELAY_CHAT_OPEN_TIMEOUT_SECONDS", DEFAULT_CHAT_OPEN_TIMEOUT_SECONDS),
-        chat_read_timeout_seconds: env.fetch("RELAY_CHAT_READ_TIMEOUT_SECONDS", DEFAULT_CHAT_READ_TIMEOUT_SECONDS),
-        default_language: env.fetch("RELAY_DEFAULT_LANGUAGE", DEFAULT_LANGUAGE),
-        page_size: env.fetch("RELAY_DOCUMENTS_PAGE_SIZE", DEFAULT_PAGE_SIZE)
+        source_token: settings.source_token,
+        public_base_url: settings.public_base_url,
+        widget_markup: settings.widget_markup,
+        default_language: settings.default_language,
+        page_size: settings.page_size,
+        source_types: settings.source_types,
+        source_field_mappings: settings.source_field_mappings
       )
     end
 
-    def initialize(source_token: nil, public_base_url: "", chat_base_url: "", chat_token: nil,
-                   chat_tenant_key: "mosaic", chat_open_timeout_seconds: DEFAULT_CHAT_OPEN_TIMEOUT_SECONDS,
-                   chat_read_timeout_seconds: DEFAULT_CHAT_READ_TIMEOUT_SECONDS, default_language: DEFAULT_LANGUAGE,
-                   page_size: DEFAULT_PAGE_SIZE, redis: nil, broadcaster: nil, pod_schema_resolver: nil,
-                   asset_url_builder: nil, blog_path_builder: nil, page_model: nil, blog_model: nil, page_element_model: nil)
+    def initialize(source_token: nil, public_base_url: "", widget_markup: "", default_language: DEFAULT_LANGUAGE,
+                   page_size: DEFAULT_PAGE_SIZE, source_types: nil, source_field_mappings: {}, pod_schema_resolver: nil,
+                   asset_url_builder: nil, blog_path_builder: nil, page_path_builder: nil, source_provider: nil,
+                   page_model: nil, blog_model: nil, page_element_model: nil)
       @source_token = source_token
       @public_base_url = public_base_url
-      @chat_base_url = chat_base_url
-      @chat_token = chat_token
-      @chat_tenant_key = chat_tenant_key
-      @chat_open_timeout_seconds = chat_open_timeout_seconds
-      @chat_read_timeout_seconds = chat_read_timeout_seconds
+      @widget_markup = widget_markup
       @default_language = default_language
       @page_size = page_size
-      @redis = redis
-      @broadcaster = broadcaster
+      @source_types = source_types.nil? ? nil : Array(source_types).map(&:to_s) & SourceRegistry.keys
+      @source_field_mappings = SourceRegistry.normalize_field_mappings(source_field_mappings)
       @pod_schema_resolver = pod_schema_resolver
       @asset_url_builder = asset_url_builder
       @blog_path_builder = blog_path_builder
+      @page_path_builder = page_path_builder
+      @source_provider = source_provider
       @page_model = page_model
       @blog_model = blog_model
       @page_element_model = page_element_model
@@ -65,24 +64,16 @@ module MosaicRelay
       strip_trailing_slashes(@public_base_url)
     end
 
-    def chat_base_url
-      strip_trailing_slashes(@chat_base_url)
-    end
-
-    def chat_tenant_key
-      @chat_tenant_key.to_s.parameterize.presence || "mosaic"
-    end
-
-    def chat_open_timeout_seconds
-      bounded_integer(@chat_open_timeout_seconds, default: DEFAULT_CHAT_OPEN_TIMEOUT_SECONDS, min: 1, max: 30)
-    end
-
-    def chat_read_timeout_seconds
-      bounded_integer(@chat_read_timeout_seconds, default: DEFAULT_CHAT_READ_TIMEOUT_SECONDS, min: 1, max: 120)
-    end
-
     def page_size
       bounded_integer(@page_size, default: DEFAULT_PAGE_SIZE, min: 1, max: 250)
+    end
+
+    def source_types
+      @source_types.nil? ? SourceRegistry.default_source_types : @source_types
+    end
+
+    def source_field_mappings
+      @source_field_mappings || {}
     end
 
     private

@@ -65,14 +65,15 @@ class MosaicRelayDocumentSerializerTest < ActiveSupport::TestCase
   Change = Struct.new(:resource_type, :resource_id, :external_id)
 
   setup do
-    MosaicRelay.configure do |configuration|
-      configuration.public_base_url = "https://mosaic.example/"
-      configuration.default_language = "en-ZA"
-    end
+    MosaicRelay::SourceRegistry.reset!
+    MosaicRelay::RelaySetting.delete_all
+    MosaicRelay::RelaySetting.current.update!(public_base_url: "https://mosaic.example/", default_language: "en-ZA")
   end
 
   teardown do
     MosaicRelay.reset_configuration!
+    MosaicRelay::SourceRegistry.reset!
+    MosaicRelay::RelaySetting.delete_all
   end
 
   test "serializes a published page into the canonical document contract" do
@@ -162,6 +163,35 @@ class MosaicRelayDocumentSerializerTest < ActiveSupport::TestCase
     assert_equal 7, document.dig("metadata", "word_count")
   end
 
+  test "serializes a registered source using only its selected fields" do
+    record = Struct.new(:id, :title, :summary, :body, :updated_at, keyword_init: true).new(
+      id: 12,
+      title: "Road closure",
+      summary: "The north entrance is closed.",
+      body: "Internal operations notes.",
+      updated_at: Time.utc(2026, 8, 21, 12)
+    )
+    MosaicRelay.register_source(
+      key: "announcements",
+      label: "Announcements",
+      model: record.class,
+      title: :title,
+      fields: %i[summary body],
+      content_type: "announcement",
+      collection_path: "/announcements",
+      record_path: ->(announcement) { "/announcements/#{announcement.id}" }
+    )
+    source = MosaicRelay::SourceRegistry.fetch("announcements")
+
+    document = MosaicRelay::DocumentSerializer.for_source(record, source, fields: [ :summary ])
+
+    assert_equal "announcements:12", document.fetch("external_id")
+    assert_equal "https://mosaic.example/announcements/12", document.fetch("url")
+    assert_includes document.fetch("content"), "The north entrance is closed."
+    refute_includes document.fetch("content"), "Internal operations notes."
+    assert_equal document, MosaicRelay::DocumentContract.validate!(document)
+  end
+
   test "does not serialize a hidden or scheduled blog" do
     blog = Blog.new(
       id: 8,
@@ -172,6 +202,38 @@ class MosaicRelayDocumentSerializerTest < ActiveSupport::TestCase
     )
 
     assert_nil MosaicRelay::DocumentSerializer.for_blog(blog)
+  end
+
+  test "uses only selected Page fields when a source narrows the feed boundary" do
+    extracted = MosaicRelay::PageContentExtractor::Result.new(
+      content: "Title: Race information\n\nPrivate body",
+      content_blocks: [ { "kind" => "paragraph", "text" => "Private body" } ],
+      assets: [], updated_at: Time.utc(2026, 8, 21, 10), pod_types: [], component_count: 1
+    )
+    page = Page.new(id: 4, title: "Race information", slug: "race", meta_description: "Public summary", published_value: true)
+
+    stub_class_method(MosaicRelay::PageContentExtractor, :new, ->(*) { Struct.new(:call).new(extracted) }) do
+      document = MosaicRelay::DocumentSerializer.for_page(page, fields: [ :meta_description ])
+
+      assert_includes document.fetch("content"), "Public summary"
+      refute_includes document.fetch("content"), "Private body"
+      assert_nil document.dig("metadata", "menu_title")
+    end
+  end
+
+  test "uses only selected Blog fields when a source narrows the feed boundary" do
+    blog = Blog.new(
+      id: 10, title: "Update", slug: "update", excerpt: "Public summary", displayable_value: true,
+      content_plain_text: "Private body", updated_at: Time.current, published_at: Time.current,
+      created_at: Time.current, categories: [], blog_tags: Collection.new, blog_taggings: Collection.new,
+      blog_category_assignments: Collection.new, blog_legacy_redirects: Collection.new, cover_image: Attachment.new(false)
+    )
+
+    document = MosaicRelay::DocumentSerializer.for_blog(blog, fields: [ :excerpt ])
+
+    assert_includes document.fetch("content"), "Public summary"
+    refute_includes document.fetch("content"), "Private body"
+    assert_nil document.dig("metadata", "seo_title")
   end
 
   test "serializes a Merrell-style blog with a singular category and no legacy associations" do

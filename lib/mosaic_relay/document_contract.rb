@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "uri"
+
 module MosaicRelay
   # Validates the canonical document shape exchanged by Mosaic and Relay.
   #
@@ -53,10 +55,20 @@ module MosaicRelay
         raise InvalidDocument, "deleted must be false for active documents" unless payload["deleted"] == false
         raise InvalidDocument, "content_blocks must be an Array" unless payload["content_blocks"].is_a?(Array)
         raise InvalidDocument, "metadata must be a Hash" unless payload["metadata"].is_a?(Hash)
+        validate_absolute_url!(payload["url"])
 
         unless payload["content_hash"].to_s.match?(/\A[0-9a-f]{64}\z/)
           raise InvalidDocument, "content_hash must be a lowercase SHA-256 hex digest"
         end
+      end
+
+      def validate_absolute_url!(value)
+        uri = URI.parse(value.to_s)
+        return if uri.is_a?(URI::HTTP) && uri.host.present?
+
+        raise InvalidDocument, "url must be an absolute HTTP(S) URL"
+      rescue URI::InvalidURIError
+        raise InvalidDocument, "url must be an absolute HTTP(S) URL"
       end
 
       def stringify_keys(value)

@@ -5,6 +5,7 @@ class CreateMosaicRelayDocumentChanges < ActiveRecord::Migration[7.1]
       t.string :resource_type, null: false
       t.bigint :resource_id
       t.datetime :occurred_at, null: false
+      t.boolean :deleted, null: false, default: false
 
       t.timestamps
     end

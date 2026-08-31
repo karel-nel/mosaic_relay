@@ -3,31 +3,20 @@
 require "test_helper"
 
 class MosaicRelayPodDefinitionTest < ActiveSupport::TestCase
-  test "loads the extracted Mosaic pod definition" do
-    assert_path_exists MosaicRelay::PodDefinition.path
+  test "defines the canonical Relay widget Pod" do
+    definition = MosaicRelay::PodDefinition.relay_chat
 
-    definitions = MosaicRelay::PodDefinition.definitions
-    assert_kind_of Hash, definitions
-    assert_equal [ "llm_chat_window" ], definitions.fetch("pod_definitions").keys
+    assert_equal "Relay Chat", definition.fetch("name")
+    assert_equal "Mounts the Relay-owned chat widget.", definition.fetch("description")
+    assert_equal "content", definition.fetch("category")
+    assert_equal "chat", definition.fetch("icon")
+    assert_equal({}, definition.fetch("schema"))
   end
 
-  test "defines the LLM chat pod metadata" do
-    definition = MosaicRelay::PodDefinition.llm_chat_window
+  test "does not retain the legacy chat window definition" do
+    definitions = MosaicRelay::PodDefinition.definitions.fetch("pod_definitions")
 
-    assert_equal "LLM Chat Window", definition["name"]
-    assert_equal "content", definition["category"]
-    assert_equal "chat", definition["icon"]
-    assert_equal true, definition["usable_in_sections"]
-    assert_equal [ "content", "tabs" ], definition["recommended_for"]
-  end
-
-  test "defines the required title field" do
-    title = MosaicRelay::PodDefinition.llm_chat_window.fetch("schema").fetch("Title")
-
-    assert_equal "text", title["type"]
-    assert_equal "Title", title["label"]
-    assert_equal 10, title["position"]
-    assert_equal true, title["required"]
-    assert_equal "content", title["inspector_group"]
+    assert_equal [ "relay_chat" ], definitions.keys
+    refute definitions.key?("llm_chat_window")
   end
 end

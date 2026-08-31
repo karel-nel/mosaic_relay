@@ -16,8 +16,8 @@ module MosaicRelay
       YAML.safe_load_file(PATH, permitted_classes: [], permitted_symbols: [], aliases: false)
     end
 
-    def llm_chat_window
-      definitions.fetch("pod_definitions").fetch("llm_chat_window")
+    def relay_chat
+      definitions.fetch("pod_definitions").fetch(MigrationContract::CANONICAL_POD_TYPE)
     end
   end
 end

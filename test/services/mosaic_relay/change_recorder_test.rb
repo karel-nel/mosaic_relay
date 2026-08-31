@@ -4,6 +4,24 @@ require "test_helper"
 
 class MosaicRelayChangeRecorderTest < ActiveSupport::TestCase
   Resource = Struct.new(:id)
+  SourceModel = Class.new do
+    class << self
+      attr_accessor :records
+
+      def all
+        records
+      end
+    end
+  end
+
+  setup do
+    MosaicRelay::SourceRegistry.reset!
+    SourceModel.records = []
+  end
+
+  teardown do
+    MosaicRelay::SourceRegistry.reset!
+  end
 
   test "records pages using the canonical external id" do
     calls = []
@@ -19,7 +37,8 @@ class MosaicRelayChangeRecorderTest < ActiveSupport::TestCase
       external_id: "pages:42",
       resource_type: "Page",
       resource_id: 42,
-      occurred_at: timestamp
+      occurred_at: timestamp,
+      deleted: false
     } ], calls
   end
 
@@ -59,6 +78,27 @@ class MosaicRelayChangeRecorderTest < ActiveSupport::TestCase
     end
 
     assert_equal timestamp, calls.first.fetch(:occurred_at)
+  end
+
+  test "records active documents and tombstones when a selected source changes" do
+    MosaicRelay.register_source(
+      key: "announcements",
+      model: SourceModel,
+      scope: :all,
+      collection_path: "/announcements",
+      record_path: ->(record) { "/announcements/#{record.id}" }
+    )
+    SourceModel.records = [ Resource.new(3), Resource.new(4) ]
+    calls = []
+
+    stub_class_method(MosaicRelay::DocumentChange, :create!, ->(attributes) { calls << attributes; attributes }) do
+      MosaicRelay::ChangeRecorder.record_source_documents("announcements")
+      MosaicRelay::ChangeRecorder.record_source_tombstones("announcements")
+    end
+
+    assert_equal [ false, false, true, true ], calls.map { |attributes| attributes.fetch(:deleted) }
+    assert_equal [ "announcements:3", "announcements:4", "announcements:3", "announcements:4" ],
+                 calls.map { |attributes| attributes.fetch(:external_id) }
   end
 
   test "appends changes that can be read by sequence" do

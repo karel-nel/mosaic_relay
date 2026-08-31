@@ -109,4 +109,26 @@ class MosaicRelayModelHooksTest < ActiveSupport::TestCase
     assert_equal [ blog.published_at ], scheduled_at
     assert_equal blog.id, scheduled_job.blog_id
   end
+
+  test "installs change tracking for dynamically registered sources" do
+    model = Class.new(FakeRecord)
+    model.define_singleton_method(:name) { "DynamicAnnouncement" }
+    model.define_singleton_method(:table_exists?) { true }
+
+    MosaicRelay.register_source(
+      key: "announcements",
+      model: model,
+      fields: %i[summary],
+      field_options: %i[summary],
+      collection_path: "/announcements",
+      record_path: ->(record) { "/announcements/#{record.id}" },
+      scope: :all
+    )
+
+    MosaicRelay::ModelHooks.install!
+
+    assert_operator model, :<, MosaicRelay::TracksRegisteredSourceChanges
+  ensure
+    MosaicRelay::SourceRegistry.reset!
+  end
 end

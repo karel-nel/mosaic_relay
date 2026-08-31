@@ -2,22 +2,28 @@
 
 require "digest"
 require "json"
+require "uri"
 
 module MosaicRelay
   class DocumentSerializer
     class << self
-      def for_page(page)
+      def for_page(page, fields: nil, public_base_url: nil)
         return unless page&.published?
 
         extracted = PageContentExtractor.new(page).call
         return if extracted.content.blank?
+        selected_fields = source_fields(fields, default: %w[content menu_title meta_description])
+        full_document = selected_fields.nil? || selected_fields.sort == %w[content menu_title meta_description]
+        content_blocks = full_document ? page_content_blocks(page, extracted) : selected_page_content_blocks(page, extracted, selected_fields)
+        content = full_document ? extracted.content : content_from_blocks(content_blocks)
+        return if content.blank?
 
         document(
-          external_id: "pages:#{page.id}",
+          external_id: MigrationContract.external_id("pages", page.id),
           title: page.title,
-          url: page_url(page),
-          content: extracted.content,
-          content_blocks: page_content_blocks(page, extracted),
+          url: page_url(page, public_base_url),
+          content: content,
+          content_blocks: content_blocks,
           content_type: "page",
           updated_at: extracted.updated_at,
           metadata: {
@@ -27,8 +33,8 @@ module MosaicRelay
             canonical_path: page_path(page),
             builder_mode: (page.builder_mode if page.respond_to?(:builder_mode)),
             published_at: iso8601(page.published_at),
-            meta_description: PlainText.clean(page.meta_description),
-            menu_title: page.menu_title,
+            meta_description: (PlainText.clean(page.meta_description) if full_document || selected_fields.include?("meta_description")),
+            menu_title: (page.menu_title if full_document || selected_fields.include?("menu_title")),
             show_in_menu: page.show_in_menu,
             show_in_footer: page.show_in_footer,
             ancestry: page.ancestry,
@@ -39,11 +45,13 @@ module MosaicRelay
         )
       end
 
-      def for_blog(blog)
+      def for_blog(blog, fields: nil, public_base_url: nil)
         return unless blog&.displayable?
 
+        selected_fields = source_fields(fields, default: %w[content excerpt seo_description seo_title])
+        full_document = selected_fields.nil? || selected_fields.sort == %w[content excerpt seo_description seo_title]
         body = PlainText.clean(blog.content_plain_text)
-        return if body.blank?
+        return if body.blank? && (full_document || selected_fields.include?("content"))
 
         categories = blog_categories(blog).map { |category| taxonomy(category) }
         tags = ordered_blog_tags(blog).map { |tag| taxonomy(tag) }
@@ -57,6 +65,10 @@ module MosaicRelay
           ({ "kind" => "paragraph", "text" => PlainText.clean(blog.excerpt) } if blog.excerpt.present?),
           *ContentBlockExtractor.from_html(blog.content&.body&.to_html || body)
         ].compact
+        unless full_document
+          content, content_blocks = selected_blog_content(blog, body, selected_fields)
+          return if content.blank?
+        end
         updated_at = [
           blog.updated_at,
           blog.content&.updated_at,
@@ -65,9 +77,9 @@ module MosaicRelay
         ].compact.max
 
         document(
-          external_id: "blogs:#{blog.id}",
+          external_id: MigrationContract.external_id("blogs", blog.id),
           title: blog.title,
-          url: blog_url(blog),
+          url: blog_url(blog, public_base_url),
           content: content,
           content_blocks: content_blocks,
           content_type: "article",
@@ -80,9 +92,9 @@ module MosaicRelay
             legacy_post_id: optional_attribute(blog, :legacy_post_id),
             legacy_slug: optional_attribute(blog, :legacy_slug),
             author: blog.author_name,
-            excerpt: PlainText.clean(blog.excerpt),
-            seo_title: blog.seo_title,
-            seo_description: PlainText.clean(blog.seo_description),
+            excerpt: (PlainText.clean(blog.excerpt) if full_document || selected_fields.include?("excerpt")),
+            seo_title: (blog.seo_title if full_document || selected_fields.include?("seo_title")),
+            seo_description: (PlainText.clean(blog.seo_description) if full_document || selected_fields.include?("seo_description")),
             published_at: iso8601(blog.published_at),
             created_at: iso8601(blog.created_at),
             categories: categories,
@@ -95,10 +107,46 @@ module MosaicRelay
         )
       end
 
-      def for_change(change)
+      # Registered Mosaic sources use the same canonical Relay document shape
+      # as Pages and Blogs. The registry controls the title, fields, and
+      # public record path; callers cannot pass arbitrary model attributes.
+      def for_source(record, source, fields: nil, public_base_url: nil)
+        return unless record && source
+        return for_page(record, fields: fields, public_base_url: public_base_url) if source.key == "pages"
+        return for_blog(record, fields: fields, public_base_url: public_base_url) if source.key == "blogs"
+
+        title = source_title(record, source)
+        selected_fields = Array(fields).filter_map do |field|
+          next unless record.respond_to?(field)
+
+          text = PlainText.clean(record.public_send(field))
+          [ field.to_s.humanize, text ] if text.present?
+        end
+        path = source.public_path_for(record)
+        return if path.blank?
+
+        content = ([ "Title: #{title}" ] + selected_fields.map { |label, text| "#{label}: #{text}" }).join("\n\n")
+        document(
+          external_id: MigrationContract.external_id(source.key, record.id),
+          title: title,
+          url: source_url(path, public_base_url),
+          content: content,
+          content_blocks: source_content_blocks(title, selected_fields),
+          content_type: source.content_type.presence || source.key.singularize,
+          updated_at: source_updated_at(record),
+          metadata: {
+            source: "mosaic_cms",
+            source_type: source.key,
+            record_id: record.id,
+            canonical_path: path
+          }
+        )
+      end
+
+      def for_change(change, fields: nil, public_base_url: nil)
         document = case change.resource_type
-        when "Page" then for_page(find_page(change.resource_id))
-        when "Blog" then for_blog(find_blog(change.resource_id))
+        when "Page" then for_page(find_page(change.resource_id), fields: fields, public_base_url: public_base_url)
+        when "Blog" then for_blog(find_blog(change.resource_id), fields: fields, public_base_url: public_base_url)
         end
 
         document || { "external_id" => change.external_id, "deleted" => true }
@@ -107,6 +155,8 @@ module MosaicRelay
       private
 
       def document(external_id:, title:, url:, content:, content_blocks:, content_type:, updated_at:, metadata:)
+        return if url.blank?
+
         cleaned_content = PlainText.clean(content)
         cleaned_blocks = content_blocks.filter_map { |block| normalize_block(block) }
         cleaned_metadata = metadata.compact.deep_stringify_keys
@@ -129,20 +179,124 @@ module MosaicRelay
         page.slug == "home" ? "/" : "/#{ERB::Util.url_encode(page.slug)}"
       end
 
-      def page_url(page)
-        "#{configuration.public_base_url}#{page_path(page)}"
+      def source_fields(fields, default:)
+        return if fields.nil?
+
+        Array(fields).map(&:to_s) & default
       end
 
-      def blog_url(blog)
+      def selected_page_content_blocks(page, extracted, selected_fields)
+        blocks = [ { "kind" => "heading", "level" => 1, "text" => page.title } ]
+        if selected_fields.include?("meta_description") && page.meta_description.present?
+          blocks << { "kind" => "paragraph", "text" => PlainText.clean(page.meta_description) }
+        end
+        blocks.concat(extracted.content_blocks) if selected_fields.include?("content")
+        if selected_fields.include?("menu_title") && page.menu_title.present?
+          blocks << { "kind" => "paragraph", "text" => "Menu title: #{page.menu_title}" }
+        end
+        blocks
+      end
+
+      def selected_blog_content(blog, body, selected_fields)
+        sections = [ "Title: #{blog.title}" ]
+        blocks = [ { "kind" => "heading", "level" => 1, "text" => blog.title } ]
+        add_selected_blog_section(sections, blocks, "Summary", PlainText.clean(blog.excerpt), selected_fields.include?("excerpt"))
+        add_selected_blog_section(sections, blocks, "Content", body, selected_fields.include?("content"))
+        add_selected_blog_section(sections, blocks, "SEO title", blog.seo_title, selected_fields.include?("seo_title"))
+        add_selected_blog_section(sections, blocks, "SEO description", PlainText.clean(blog.seo_description), selected_fields.include?("seo_description"))
+
+        [ sections.join("\n\n"), blocks ]
+      end
+
+      def add_selected_blog_section(sections, blocks, label, value, selected)
+        return unless selected && value.present?
+
+        sections << "#{label}: #{value}"
+        blocks << { "kind" => "heading", "level" => 2, "text" => label }
+        blocks << { "kind" => "paragraph", "text" => value }
+      end
+
+      def content_from_blocks(blocks)
+        Array(blocks).filter_map do |block|
+          case block["kind"]
+          when "heading", "paragraph", "table", "code" then PlainText.clean(block["text"])
+          when "list" then Array(block["items"]).map { |item| PlainText.clean(item) }.compact.join("\n")
+          end
+        end.join("\n\n")
+      end
+
+      def source_title(record, source)
+        value = record.public_send(source.title) if source.title.present? && record.respond_to?(source.title)
+        PlainText.clean(value).presence || "Untitled #{source.label.to_s.singularize}"
+      end
+
+      def source_url(path, public_base_url)
+        absolute_url(path, public_base_url)
+      end
+
+      def source_content_blocks(title, fields)
+        [ { "kind" => "heading", "level" => 1, "text" => title } ] + fields.flat_map do |label, value|
+          [
+            { "kind" => "heading", "level" => 2, "text" => label },
+            { "kind" => "paragraph", "text" => value }
+          ]
+        end
+      end
+
+      def source_updated_at(record)
+        timestamps = []
+        timestamps << record.updated_at if record.respond_to?(:updated_at)
+        timestamps << record.published_at if record.respond_to?(:published_at)
+        timestamps.compact.max || Time.current
+      end
+
+      def page_url(page, public_base_url)
+        absolute_url(page_path(page), public_base_url)
+      end
+
+      def blog_url(blog, public_base_url)
         path = if configuration.blog_path_builder.respond_to?(:call)
           configuration.blog_path_builder.call(blog)
         else
-          "/blogs/#{ERB::Util.url_encode(blog.slug)}"
+          default_blog_path(blog)
         end
 
-        return path if path.to_s.match?(%r{\Ahttps?://}i)
+        absolute_url(path, public_base_url)
+      end
 
-        "#{configuration.public_base_url}#{path.to_s.start_with?("/") ? path : "/#{path}"}"
+      def default_blog_path(blog)
+        return unless defined?(Rails) && Rails.application
+
+        routes = Rails.application.routes.url_helpers
+        return routes.blog_path(blog) if routes.respond_to?(:blog_path)
+
+        "/blogs/#{ERB::Util.url_encode(blog.slug)}"
+      rescue StandardError
+        "/blogs/#{ERB::Util.url_encode(blog.slug)}"
+      end
+
+      def absolute_url(path, public_base_url)
+        raw_path = path.to_s
+        candidate = if raw_path.match?(%r{\Ahttps?://}i)
+          raw_path
+        else
+          base_url = public_base_url.to_s.strip.presence || configuration.public_base_url
+          base_url = base_url.to_s.sub(%r{/+\z}, "")
+          return if base_url.blank?
+
+          "#{base_url}#{raw_path.start_with?("/") ? raw_path : "/#{raw_path}"}"
+        end
+
+        [ candidate, URI::DEFAULT_PARSER.escape(candidate) ].uniq.each do |value|
+          uri = URI.parse(value)
+          return uri.to_s if uri.is_a?(URI::HTTP) && uri.host.present?
+        rescue URI::InvalidURIError
+          next
+        end
+
+        nil
+      rescue URI::InvalidURIError
+        nil
       end
 
       def blog_categories(blog)

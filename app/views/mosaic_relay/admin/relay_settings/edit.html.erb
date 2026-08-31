@@ -1,0 +1,897 @@
+<% content_for :page_title, "Relay Settings" %>
+<% content_for :title, "Relay Settings" %>
+
+<style>
+  #mosaic-relay-settings {
+    --rr-ink: #0f172a;
+    --rr-body: #334155;
+    --rr-muted: #64748b;
+    --rr-border: #e2e8f0;
+    --rr-border-strong: #cbd5e1;
+    --rr-surface: #ffffff;
+    --rr-canvas: #f6f8fa;
+    --rr-soft: #f8fafc;
+    --rr-accent: #10b981;
+    --rr-accent-dark: #047857;
+    --rr-accent-soft: #ecfdf5;
+    --rr-danger: #e11d48;
+    --rr-danger-soft: #fff1f2;
+    --rr-input-surface: #ffffff;
+    --rr-selected-surface: #fbfffd;
+    --rr-unavailable-surface: #fbfcfd;
+    --rr-unavailable-border: #edf1f5;
+    --rr-divider: #edf2f7;
+    --rr-button-hover: #1e293b;
+    --rr-control-hover: #f8fafc;
+    --rr-pending-surface: #fffbeb;
+    --rr-pending-ink: #92400e;
+    --rr-pending-border: #fde68a;
+    --rr-pending-accent: #f59e0b;
+    --rr-pending-ring: #fef3c7;
+    --rr-token-border: #a7f3d0;
+    --rr-token-ink: #065f46;
+    --rr-button-ink: #ffffff;
+    --rr-placeholder: #94a3b8;
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
+    color: var(--rr-body);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.5;
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Follow Mosaic's theme marker when the host toggles dark mode. The
+     selector also supports common Rails/Bootstrap/Tailwind conventions so
+     this isolated settings surface changes with the surrounding admin shell
+     without owning a second theme toggle. */
+  :where(.dark, .dark-mode, .theme-dark, [data-theme="dark"], [data-mode="dark"], [data-bs-theme="dark"], [data-color-scheme="dark"]) #mosaic-relay-settings,
+  #mosaic-relay-settings:is(.dark, .dark-mode, .theme-dark, [data-theme="dark"], [data-mode="dark"], [data-bs-theme="dark"], [data-color-scheme="dark"]) {
+    --rr-ink: #f8fafc;
+    --rr-body: #cbd5e1;
+    --rr-muted: #94a3b8;
+    --rr-border: #334155;
+    --rr-border-strong: #475569;
+    --rr-surface: #0f172a;
+    --rr-canvas: #020617;
+    --rr-soft: #1e293b;
+    --rr-accent: #34d399;
+    --rr-accent-dark: #6ee7b7;
+    --rr-accent-soft: #064e3b;
+    --rr-danger: #fb7185;
+    --rr-danger-soft: #4c0519;
+    --rr-input-surface: #111827;
+    --rr-selected-surface: #12352d;
+    --rr-unavailable-surface: #111827;
+    --rr-unavailable-border: #1e293b;
+    --rr-divider: #334155;
+    --rr-button-hover: #334155;
+    --rr-control-hover: #334155;
+    --rr-pending-surface: #422006;
+    --rr-pending-ink: #fde68a;
+    --rr-pending-border: #92400e;
+    --rr-pending-accent: #fbbf24;
+    --rr-pending-ring: #78350f;
+    --rr-token-border: #047857;
+    --rr-token-ink: #a7f3d0;
+    --rr-button-ink: #020617;
+    --rr-placeholder: #64748b;
+    color-scheme: dark;
+  }
+
+  #mosaic-relay-settings *,
+  #mosaic-relay-settings *::before,
+  #mosaic-relay-settings *::after { box-sizing: border-box; }
+  #mosaic-relay-settings h1,
+  #mosaic-relay-settings h2,
+  #mosaic-relay-settings h3,
+  #mosaic-relay-settings p { margin: 0; }
+
+  /* ---------- Canvas ---------- */
+  #mosaic-relay-settings .rr-canvas {
+    background: var(--rr-canvas);
+    border-radius: 16px;
+    padding: 20px 20px 24px;
+  }
+
+  /* ---------- Hero ---------- */
+  #mosaic-relay-settings .rr-hero {
+    display: flex !important;
+    float: none !important;
+    width: auto !important;
+    min-height: 0 !important;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    padding-bottom: 24px;
+  }
+  #mosaic-relay-settings .rr-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    color: var(--rr-accent-dark);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  #mosaic-relay-settings .rr-eyebrow::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--rr-accent);
+  }
+  #mosaic-relay-settings .rr-hero h2 {
+    color: var(--rr-ink);
+    font-size: 27px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+  }
+  #mosaic-relay-settings .rr-hero-copy {
+    max-width: 500px;
+    margin-top: 8px;
+    color: var(--rr-muted);
+    font-size: 13.5px;
+  }
+  #mosaic-relay-settings .rr-hero-actions {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 12px;
+    padding-top: 3px;
+  }
+  #mosaic-relay-settings .rr-inline-form { margin: 0; display: flex; }
+  #mosaic-relay-settings .rr-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: var(--rr-surface);
+    border: 1px solid var(--rr-border);
+    color: var(--rr-body);
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  #mosaic-relay-settings .rr-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--rr-accent);
+    box-shadow: 0 0 0 3px var(--rr-accent-soft);
+  }
+  #mosaic-relay-settings .rr-status--pending {
+    border-color: var(--rr-pending-border);
+    background: var(--rr-pending-surface);
+    color: var(--rr-pending-ink);
+  }
+  #mosaic-relay-settings .rr-status--pending .rr-status-dot {
+    background: var(--rr-pending-accent);
+    box-shadow: 0 0 0 3px var(--rr-pending-ring);
+  }
+
+  /* ---------- Layout ---------- */
+  #mosaic-relay-settings .rr-layout { display: block; }
+  #mosaic-relay-settings .rr-main { display: grid; gap: 16px; }
+
+  /* ---------- Cards ---------- */
+  #mosaic-relay-settings .rr-card {
+    border: 1px solid var(--rr-border);
+    border-radius: 12px;
+    background: var(--rr-surface);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 16px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
+  }
+  #mosaic-relay-settings .rr-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 16px 18px 0;
+  }
+  #mosaic-relay-settings .rr-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--rr-accent-soft);
+    color: var(--rr-accent-dark);
+  }
+  #mosaic-relay-settings .rr-card-icon svg { width: 15px; height: 15px; }
+  #mosaic-relay-settings .rr-card-header h3 {
+    margin-bottom: 3px;
+    color: var(--rr-ink);
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  #mosaic-relay-settings .rr-card-header p {
+    color: var(--rr-muted);
+    font-size: 11.5px;
+  }
+  #mosaic-relay-settings .rr-card-body { padding: 8px 18px 16px; }
+  #mosaic-relay-settings .rr-card-body--sources { padding-top: 4px; }
+
+  /* ---------- Fields ---------- */
+  #mosaic-relay-settings .rr-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 18px;
+  }
+  #mosaic-relay-settings .rr-field { min-width: 0; }
+  #mosaic-relay-settings .rr-field-full { grid-column: 1 / -1; }
+  #mosaic-relay-settings .rr-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  #mosaic-relay-settings .rr-label {
+    display: block;
+    color: var(--rr-ink);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  #mosaic-relay-settings .rr-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--rr-accent-soft);
+    color: var(--rr-accent-dark);
+    font-size: 10.5px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  #mosaic-relay-settings .rr-pill::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--rr-accent-dark);
+  }
+  #mosaic-relay-settings .rr-input,
+  #mosaic-relay-settings .rr-textarea {
+    display: block;
+    width: 100%;
+    border: 1px solid var(--rr-border-strong);
+    border-radius: 9px;
+    outline: none;
+    background: var(--rr-input-surface);
+    color: var(--rr-ink);
+    font: inherit;
+    font-size: 13px;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
+  }
+  #mosaic-relay-settings .rr-input { min-height: 40px; padding: 9px 12px; }
+  #mosaic-relay-settings .rr-textarea { min-height: 160px; padding: 12px; line-height: 1.6; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+  #mosaic-relay-settings .rr-input::placeholder,
+  #mosaic-relay-settings .rr-textarea::placeholder { color: var(--rr-placeholder); }
+  #mosaic-relay-settings .rr-input:focus,
+  #mosaic-relay-settings .rr-textarea:focus {
+    border-color: var(--rr-accent);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
+  }
+  #mosaic-relay-settings .rr-input[readonly] {
+    background: var(--rr-soft);
+    color: var(--rr-body);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+  }
+  #mosaic-relay-settings .rr-hint { margin-top: 6px; color: var(--rr-muted); font-size: 11px; line-height: 1.45; }
+
+  /* ---------- Source picker ---------- */
+  #mosaic-relay-settings .rr-source-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 10px;
+    row-gap: 6px;
+    align-items: start;
+  }
+  #mosaic-relay-settings .rr-source-config {
+    min-width: 0;
+    margin: 0;
+  }
+
+  #mosaic-relay-settings .rr-source-option {
+    border: 1px solid var(--rr-border);
+    border-radius: 10px;
+    background: var(--rr-input-surface);
+    overflow: hidden;
+    transition: border-color 140ms ease, background 140ms ease;
+  }
+  #mosaic-relay-settings .rr-source-option:hover { border-color: var(--rr-border-strong); }
+  #mosaic-relay-settings .rr-source-option:has(.rr-checkbox:checked) {
+    border-color: var(--rr-accent);
+    background: var(--rr-selected-surface);
+  }
+  #mosaic-relay-settings .rr-source-option input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+  }
+
+  /* Compact source header: content is vertically centered and does not
+     create excess top/bottom space inside each card. */
+  #mosaic-relay-settings .rr-source-toggle {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 52px;
+    gap: 8px;
+    margin: 0 !important;
+    padding: 7px 30px 7px 11px !important;
+    cursor: pointer;
+    line-height: 1;
+  }
+  #mosaic-relay-settings .rr-source-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+  }
+  #mosaic-relay-settings .rr-source-name {
+    display: block;
+    margin: 0;
+    padding: 0;
+    color: var(--rr-ink);
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  #mosaic-relay-settings .rr-source-description {
+    display: block;
+    margin: 2px 0 0;
+    padding: 0;
+    color: var(--rr-muted);
+    font-size: 10px;
+    line-height: 1.2;
+  }
+  #mosaic-relay-settings .rr-source-check {
+    position: absolute;
+    top: 50%;
+    right: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    border-radius: 50%;
+    border: 1.5px solid var(--rr-border-strong);
+    background: var(--rr-input-surface);
+    transform: translateY(-50%);
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  #mosaic-relay-settings .rr-source-check svg {
+    width: 9px;
+    height: 9px;
+    opacity: 0;
+    transition: opacity 100ms ease;
+  }
+  #mosaic-relay-settings .rr-source-option:has(.rr-checkbox:checked) .rr-source-check {
+    border-color: var(--rr-accent);
+    background: var(--rr-accent);
+  }
+  #mosaic-relay-settings .rr-source-option:has(.rr-checkbox:checked) .rr-source-check svg { opacity: 1; }
+
+  /* Unavailable variant */
+  #mosaic-relay-settings .rr-source-option--unavailable {
+    border-color: var(--rr-unavailable-border);
+    background: var(--rr-unavailable-surface);
+  }
+  #mosaic-relay-settings .rr-source-option--unavailable:hover { border-color: var(--rr-unavailable-border); }
+  #mosaic-relay-settings .rr-source-option--unavailable .rr-source-check { display: none; }
+  #mosaic-relay-settings .rr-source-option--unavailable .rr-source-toggle { padding-right: 11px !important; cursor: not-allowed; }
+  #mosaic-relay-settings .rr-source-option--unavailable .rr-source-name { color: var(--rr-muted); }
+  #mosaic-relay-settings .rr-source-option--unavailable .rr-source-description { color: var(--rr-placeholder); }
+
+  #mosaic-relay-settings .rr-unavailable-sources {
+    margin-top: 14px;
+    border: 0;
+    background: transparent;
+  }
+  #mosaic-relay-settings .rr-unavailable-sources summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 2px;
+    color: var(--rr-placeholder);
+    cursor: pointer;
+    font-size: 10.5px;
+    font-weight: 600;
+    list-style: none;
+  }
+  #mosaic-relay-settings .rr-unavailable-sources summary::-webkit-details-marker { display: none; }
+  #mosaic-relay-settings .rr-unavailable-sources summary::after {
+    content: "";
+    width: 5px;
+    height: 5px;
+    margin-left: 2px;
+    border-right: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    transform: rotate(45deg) translateY(-1px);
+    transition: transform 160ms ease;
+  }
+  #mosaic-relay-settings .rr-unavailable-sources[open] summary::after { transform: rotate(225deg) translate(-1px, -1px); }
+  #mosaic-relay-settings .rr-unavailable-count {
+    color: var(--rr-placeholder);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  #mosaic-relay-settings .rr-unavailable-count::before { content: "· "; }
+  #mosaic-relay-settings .rr-unavailable-body {
+    margin-top: 7px;
+    padding: 9px 0 0;
+    border-top: 1px solid var(--rr-divider);
+  }
+  #mosaic-relay-settings .rr-unavailable-copy {
+    margin: 0 2px 8px;
+    color: var(--rr-placeholder);
+    font-size: 10px;
+    line-height: 1.4;
+  }
+
+  /* Fields drawer — sits directly below the compact source header. */
+  #mosaic-relay-settings .rr-source-fields {
+    margin: 0 9px 7px;
+    padding: 0;
+    border-top: 1px solid var(--rr-divider);
+    color: var(--rr-muted);
+  }
+  #mosaic-relay-settings .rr-source-fields summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    margin: 0;
+    padding: 5px 0;
+    color: var(--rr-muted);
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.2;
+    list-style: none;
+    outline: none;
+  }
+  #mosaic-relay-settings .rr-source-fields summary::-webkit-details-marker { display: none; }
+  #mosaic-relay-settings .rr-source-fields summary:focus-visible {
+    outline: 2px solid rgba(16, 185, 129, 0.45);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  #mosaic-relay-settings .rr-source-fields[open] summary {
+    color: var(--rr-ink);
+    font-weight: 700;
+  }
+  #mosaic-relay-settings .rr-source-fields-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin: 0;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  #mosaic-relay-settings .rr-source-field-count { color: var(--rr-accent-dark); font-variant-numeric: tabular-nums; }
+  #mosaic-relay-settings .rr-source-fields-chevron { width: 10px; height: 10px; transition: transform 160ms ease; }
+  #mosaic-relay-settings .rr-source-fields[open] .rr-source-fields-chevron { transform: rotate(180deg); }
+  #mosaic-relay-settings .rr-source-fields:not([open]) .rr-source-field-list { display: none; }
+
+  #mosaic-relay-settings .rr-source-fields-copy {
+    margin: 0 0 6px;
+    padding: 0;
+    color: var(--rr-muted);
+    font-size: 10.5px;
+    line-height: 1.35;
+  }
+
+  #mosaic-relay-settings .rr-source-field-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 10px;
+    row-gap: 2px;
+    margin: 0;
+    padding: 1px 0 6px;
+    animation: rr-field-reveal 160ms ease-out;
+  }
+  #mosaic-relay-settings .rr-source-field-option {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    margin: 0;
+    padding: 3px 0;
+    color: var(--rr-body);
+    cursor: pointer;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1.2;
+    transition: color 140ms ease;
+  }
+  #mosaic-relay-settings .rr-source-field-option::before {
+    content: "";
+    flex: 0 0 10px;
+    width: 10px;
+    height: 10px;
+    border: 1.5px solid var(--rr-border-strong);
+    border-radius: 3px;
+    background: var(--rr-input-surface);
+    transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+  }
+  #mosaic-relay-settings .rr-source-field-option:hover { color: var(--rr-ink); }
+  #mosaic-relay-settings .rr-source-field-option:hover::before { border-color: var(--rr-border-strong); }
+  #mosaic-relay-settings .rr-source-field-option:has(input:checked) { color: var(--rr-accent-dark); }
+  #mosaic-relay-settings .rr-source-field-option:has(input:checked)::before {
+    border-color: var(--rr-accent);
+    background: var(--rr-accent);
+    box-shadow: inset 0 0 0 2px var(--rr-accent-soft);
+  }
+  #mosaic-relay-settings .rr-source-field-option:has(input:focus-visible) {
+    outline: 2px solid rgba(16, 185, 129, 0.38);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  #mosaic-relay-settings .rr-source-field-option input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  @keyframes rr-field-reveal {
+    from { opacity: 0; transform: translateY(-3px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ---------- Copy surfaces / buttons ---------- */
+  #mosaic-relay-settings .rr-copy-row { display: flex; align-items: stretch; gap: 8px; }
+  #mosaic-relay-settings .rr-copy-row .rr-input { min-width: 0; }
+  #mosaic-relay-settings .rr-copy-surface {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px;
+    border: 1px solid var(--rr-border-strong);
+    border-radius: 10px;
+    background: var(--rr-soft);
+  }
+  #mosaic-relay-settings .rr-request-method {
+    display: inline-flex;
+    align-items: center;
+    align-self: stretch;
+    padding: 0 8px;
+    border-radius: 6px;
+    background: var(--rr-accent-soft);
+    color: var(--rr-accent-dark);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+  #mosaic-relay-settings .rr-copy-value {
+    min-width: 0;
+    flex: 1;
+    overflow-x: auto;
+    padding: 0 3px;
+    color: var(--rr-ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    line-height: 28px;
+    white-space: nowrap;
+    user-select: all;
+  }
+  #mosaic-relay-settings .rr-button,
+  #mosaic-relay-settings .rr-copy-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    text-decoration: none;
+    transition: background 140ms ease, border-color 140ms ease, transform 100ms ease;
+    white-space: nowrap;
+  }
+  #mosaic-relay-settings .rr-button:active,
+  #mosaic-relay-settings .rr-copy-button:active { transform: scale(0.98); }
+  #mosaic-relay-settings .rr-button-primary { padding: 0 18px; background: var(--rr-ink); color: var(--rr-button-ink); }
+  #mosaic-relay-settings .rr-button-primary:hover { background: var(--rr-button-hover); }
+  #mosaic-relay-settings .rr-button-secondary,
+  #mosaic-relay-settings .rr-copy-button { padding: 0 14px; border-color: var(--rr-border-strong); background: var(--rr-input-surface); color: var(--rr-body); }
+  #mosaic-relay-settings .rr-button-secondary:hover,
+  #mosaic-relay-settings .rr-copy-button:hover { border-color: var(--rr-muted); background: var(--rr-control-hover); }
+  #mosaic-relay-settings .rr-copy-button svg { width: 13px; height: 13px; }
+  #mosaic-relay-settings .rr-copy-button.is-copied {
+    border-color: var(--rr-accent);
+    background: var(--rr-accent-soft);
+    color: var(--rr-accent-dark);
+  }
+
+  /* ---------- Token banner ---------- */
+  #mosaic-relay-settings .rr-token-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+    padding: 16px 18px;
+    border: 1px solid var(--rr-token-border);
+    border-radius: 14px;
+    background: var(--rr-accent-soft);
+    scroll-margin-top: 18px;
+  }
+  #mosaic-relay-settings .rr-token-icon {
+    display: inline-flex;
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: var(--rr-input-surface);
+    color: var(--rr-accent-dark);
+  }
+  #mosaic-relay-settings .rr-token-icon svg { width: 17px; height: 17px; }
+  #mosaic-relay-settings .rr-token-banner-body { flex: 1; min-width: 0; }
+  #mosaic-relay-settings .rr-token-banner h3 { margin-bottom: 8px; color: var(--rr-token-ink); font-size: 13px; }
+  #mosaic-relay-settings .rr-token-hint { margin: -3px 0 9px; color: var(--rr-token-ink); }
+  #mosaic-relay-settings .rr-token-copy { display: flex; align-items: stretch; gap: 8px; }
+  #mosaic-relay-settings .rr-token-copy input { min-width: 0; flex: 1; background: var(--rr-input-surface); }
+
+  /* ---------- Footer action bar ---------- */
+  #mosaic-relay-settings .rr-action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 4px;
+    padding-top: 4px;
+  }
+  #mosaic-relay-settings .rr-action-copy { color: var(--rr-muted); font-size: 11.5px; }
+
+  #mosaic-relay-settings .errorExplanation,
+  #mosaic-relay-settings .fieldWithErrors { color: var(--rr-danger); }
+
+  @media (max-width: 640px) {
+    #mosaic-relay-settings .rr-canvas { padding: 18px 16px 24px; border-radius: 14px; }
+    #mosaic-relay-settings .rr-hero { display: block !important; }
+    #mosaic-relay-settings .rr-hero h2 { font-size: 21px; }
+    #mosaic-relay-settings .rr-hero-actions { justify-content: space-between; margin-top: 16px; padding-top: 0; }
+    #mosaic-relay-settings .rr-grid,
+    #mosaic-relay-settings .rr-source-grid,
+    #mosaic-relay-settings .rr-source-field-list { grid-template-columns: 1fr; }
+    #mosaic-relay-settings .rr-copy-row,
+    #mosaic-relay-settings .rr-copy-surface,
+    #mosaic-relay-settings .rr-token-copy,
+    #mosaic-relay-settings .rr-action-bar { align-items: stretch; flex-direction: column; }
+    #mosaic-relay-settings .rr-token-banner { flex-direction: column; align-items: flex-start; }
+    #mosaic-relay-settings .rr-request-method { min-height: 34px; justify-content: center; }
+    #mosaic-relay-settings .rr-copy-value { width: 100%; }
+    #mosaic-relay-settings .rr-button,
+    #mosaic-relay-settings .rr-copy-button { width: 100%; }
+  }
+</style>
+
+<div id="mosaic-relay-settings">
+  <% source_statuses = @source_statuses || MosaicRelay::SourceRegistry.source_statuses(host: request.host_with_port, protocol: request.protocol) %>
+  <% available_source_statuses, unavailable_source_statuses = source_statuses.partition(&:ingestible?) %>
+  <% relay_configured = @relay_setting.source_token.present? && @relay_setting.widget_markup.present? %>
+
+  <div class="rr-canvas">
+    <div class="rr-hero">
+      <div>
+        <p class="rr-eyebrow">Niimble Relay · Mosaic CMS</p>
+        <h2>Relay Settings</h2>
+        <p class="rr-hero-copy">Connect this Mosaic site to Relay, choose the content it should understand, and place the chat widget where visitors need it.</p>
+      </div>
+      <div class="rr-hero-actions">
+        <span class="rr-status <%= "rr-status--pending" unless relay_configured %>">
+          <span class="rr-status-dot" aria-hidden="true"></span>
+          <%= relay_configured ? "Direct widget configured" : "Setup required" %>
+        </span>
+        <%= button_to "Generate bearer token",
+                      Rails.application.routes.url_helpers.mosaic_relay_generate_bearer_token_path,
+                      method: :post,
+                      class: "rr-button rr-button-secondary",
+                      form: { class: "rr-inline-form" } %>
+      </div>
+    </div>
+
+    <% if @generated_source_token.present? %>
+      <section id="relay-generated-token-panel" class="rr-token-banner" aria-live="polite">
+        <span class="rr-token-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        </span>
+        <div class="rr-token-banner-body">
+          <h3>Bearer access token ready</h3>
+          <p class="rr-hint rr-token-hint">Copy it into the Relay HTTP source now. It is shown only once.</p>
+          <div class="rr-token-copy">
+            <input id="relay-generated-token" class="rr-input" type="text" value="<%= @generated_source_token %>" readonly aria-label="Generated bearer access token">
+            <button type="button" class="rr-copy-button" data-rr-copy="relay-generated-token" aria-label="Copy bearer access token">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span class="rr-copy-label" aria-live="polite">Copy token</span>
+            </button>
+          </div>
+        </div>
+      </section>
+    <% end %>
+
+    <%= form_with model: @relay_setting,
+                  url: Rails.application.routes.url_helpers.mosaic_relay_settings_path,
+                  method: :patch,
+                  local: true,
+                  class: "rr-form" do |form| %>
+
+      <div class="rr-layout">
+        <main class="rr-main">
+          <section class="rr-card">
+            <div class="rr-card-header">
+              <span class="rr-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              </span>
+              <div>
+                <h3>Content sources</h3>
+                <p>Choose which Mosaic content families Relay should ingest and make searchable.</p>
+              </div>
+            </div>
+            <div class="rr-card-body rr-card-body--sources">
+              <%= form.hidden_field :source_types, multiple: true, value: "" %>
+              <div class="rr-source-grid">
+                <% available_source_statuses.each do |source_status| %>
+                  <%= render "source_option", form: form, source_status: source_status %>
+                <% end %>
+              </div>
+              <% if unavailable_source_statuses.present? %>
+                <details class="rr-unavailable-sources">
+                  <summary>
+                    <span>Diagnostics</span>
+                    <span class="rr-unavailable-count"><%= unavailable_source_statuses.length %> unavailable source<%= "s" unless unavailable_source_statuses.one? %></span>
+                  </summary>
+                  <div class="rr-unavailable-body">
+                    <p class="rr-unavailable-copy">Content sources without a working public endpoint. Relay skips them until the public page is fixed.</p>
+                    <div class="rr-source-grid">
+                      <% unavailable_source_statuses.each do |source_status| %>
+                        <%= render "source_option", form: form, source_status: source_status %>
+                      <% end %>
+                    </div>
+                  </div>
+                </details>
+              <% end %>
+              <p class="rr-hint">Relay checks each source’s public collection page as an anonymous visitor. Unavailable sources cannot be selected; each enabled source lists only safe text fields.</p>
+
+              <div class="rr-field" style="margin-top: 20px;">
+                <div class="rr-label-row">
+                  <span class="rr-label">Feed endpoint</span>
+                  <span class="rr-pill">HTTP feed</span>
+                </div>
+                <div class="rr-copy-surface">
+                  <span class="rr-request-method" aria-hidden="true">GET</span>
+                  <code id="relay-feed-endpoint" class="rr-copy-value" tabindex="0"><%= relay_documents_endpoint %></code>
+                  <button type="button" class="rr-copy-button" data-rr-copy="relay-feed-endpoint" aria-label="Copy feed endpoint">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <span class="rr-copy-label" aria-live="polite">Copy endpoint</span>
+                  </button>
+                </div>
+                <p class="rr-hint">Add this URL to Relay as an HTTP feed and use the generated bearer token for authentication.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="rr-card">
+            <div class="rr-card-header">
+              <span class="rr-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              </span>
+              <div>
+                <h3>Direct Relay widget</h3>
+                <p>Paste the public widget mount markup copied from Relay’s Chat widget section.</p>
+              </div>
+            </div>
+            <div class="rr-card-body">
+              <div class="rr-field">
+                <%= form.label :widget_markup, "Relay widget embed code", class: "rr-label" %>
+                <%= form.text_area :widget_markup,
+                                   class: "rr-textarea",
+                                   rows: 10,
+                                   spellcheck: false,
+                                   placeholder: '<niimble-relay-chat relay-url="https://relay.example" widget-key="nrw_public-widget-key"></niimble-relay-chat>' %>
+                <p class="rr-hint">The gem loads the Relay widget script from the markup’s <code>relay-url</code>. Configure the site origin in Relay and never paste a private chat token here.</p>
+              </div>
+            </div>
+          </section>
+
+          <div class="rr-action-bar">
+            <p class="rr-action-copy">Changes apply immediately to this Mosaic site.</p>
+            <%= form.submit "Save Relay settings", class: "rr-button rr-button-primary" %>
+          </div>
+        </main>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<script>
+  (function () {
+    document.querySelectorAll('#mosaic-relay-settings [data-rr-copy]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var target = document.getElementById(btn.getAttribute('data-rr-copy'));
+        if (!target) return;
+
+        var text = typeof target.value === 'string' ? target.value : target.textContent.trim();
+        var copyFallback = function () {
+          if (typeof target.select === 'function') {
+            target.select();
+            target.setSelectionRange(0, text.length);
+          } else {
+            var range = document.createRange();
+            range.selectNodeContents(target);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+          }
+          var copied = document.execCommand('copy');
+          window.getSelection().removeAllRanges();
+          return copied;
+        };
+        var copy = navigator.clipboard && navigator.clipboard.writeText ?
+          navigator.clipboard.writeText(text).then(function () { return true; }).catch(copyFallback) :
+          Promise.resolve(copyFallback());
+
+        copy.then(function (copied) {
+          if (!copied) return;
+          var label = btn.querySelector('.rr-copy-label');
+          var original = label ? label.textContent : null;
+          btn.classList.add('is-copied');
+          if (label) label.textContent = 'Copied';
+          setTimeout(function () {
+            btn.classList.remove('is-copied');
+            if (label && original) label.textContent = original;
+          }, 1600);
+        });
+      });
+    });
+
+    document.querySelectorAll('#mosaic-relay-settings [data-rr-source-toggle]').forEach(function (toggle) {
+      var sourceConfig = toggle.closest('.rr-source-config');
+      var fieldPicker = sourceConfig && sourceConfig.querySelector('[data-rr-source-fields]');
+      if (!fieldPicker) return;
+
+      var syncFieldPicker = function () {
+        fieldPicker.hidden = !toggle.checked || toggle.disabled;
+      };
+
+      var fieldCount = fieldPicker.querySelector('[data-rr-field-count]');
+      var syncFieldCount = function () {
+        if (!fieldCount) return;
+        fieldCount.textContent = fieldPicker.querySelectorAll('.rr-source-field-checkbox:checked').length;
+      };
+
+      toggle.addEventListener('change', syncFieldPicker);
+      fieldPicker.querySelectorAll('.rr-source-field-checkbox').forEach(function (checkbox) {
+        checkbox.addEventListener('change', syncFieldCount);
+      });
+      syncFieldPicker();
+      syncFieldCount();
+    });
+  })();
+</script>

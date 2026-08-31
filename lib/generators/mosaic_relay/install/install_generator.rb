@@ -47,10 +47,6 @@ module MosaicRelay
           "MosaicRelay requires a Rails application root; missing #{missing_files.join(', ')}."
       end
 
-      def create_initializer
-        copy_file_unless_present("initializer.rb", "config/initializers/mosaic_relay.rb")
-      end
-
       def mount_engine
         routes_path = destination_path("config/routes.rb")
         mount = 'mount MosaicRelay::Engine => "/mosaic_relay"'
@@ -84,73 +80,98 @@ module MosaicRelay
         end
       end
 
-      def install_stimulus_controller
+      def install_relay_settings_migration
+        migration_name = "create_mosaic_relay_settings"
+        migrations_path = destination_path("db/migrate")
+
+        if self.class.migration_exists?(migrations_path, migration_name)
+          say_status :identical, "db/migrate/#{migration_name}.rb"
+        else
+          migration_template(
+            "db/migrate/20260827000001_create_mosaic_relay_settings.rb",
+            "db/migrate/#{migration_name}.rb"
+          )
+        end
+      end
+
+      def install_source_selection_migration
+        migration_name = "add_source_selection_to_mosaic_relay_settings"
+        migrations_path = destination_path("db/migrate")
+
+        if self.class.migration_exists?(migrations_path, migration_name)
+          say_status :identical, "db/migrate/#{migration_name}.rb"
+        else
+          migration_template(
+            "db/migrate/20260831000001_add_source_selection_to_mosaic_relay_settings.rb",
+            "db/migrate/#{migration_name}.rb"
+          )
+        end
+      end
+
+      def install_document_change_deletion_migration
+        migration_name = "add_deleted_to_mosaic_relay_document_changes"
+        migrations_path = destination_path("db/migrate")
+
+        if self.class.migration_exists?(migrations_path, migration_name)
+          say_status :identical, "db/migrate/#{migration_name}.rb"
+        else
+          migration_template(
+            "db/migrate/20260831000002_add_deleted_to_mosaic_relay_document_changes.rb",
+            "db/migrate/#{migration_name}.rb"
+          )
+        end
+      end
+
+      def install_relay_chat_view
         copy_file_unless_present(
-          "app/javascript/controllers/llm_chat_controller.js",
-          "app/javascript/controllers/mosaic_relay_llm_chat_controller.js"
+          "app/views/pods/shared/_relay_chat.html.erb",
+          "app/views/pods/shared/_relay_chat.html.erb"
         )
-
-        index_path = "app/javascript/controllers/index.js"
-        registration = <<~JAVASCRIPT
-
-          import MosaicRelayLlmChatController from "./mosaic_relay_llm_chat_controller"
-          application.register("llm-chat", MosaicRelayLlmChatController)
-        JAVASCRIPT
-
-        if !File.exist?(destination_path(index_path))
-          say_status :warning, "#{index_path} not found; register mosaic_relay_llm_chat_controller.js manually"
-        elsif File.read(destination_path(index_path)).include?('application.register("llm-chat"')
-          say_status :identical, index_path
-        else
-          append_to_file index_path, registration
-        end
       end
 
-      def install_pod_views
-        %w[
-          app/views/pods/shared/_llm_chat_window.html.erb
-          app/views/pods/shared/_llm_chat_footer.html.erb
-        ].each { |path| copy_file_unless_present(path, path) }
-      end
-
-      def install_chat_styles
-        stylesheet = "app/assets/stylesheets/mosaic_relay/llm_chat.css"
-        copy_file_unless_present(stylesheet, stylesheet)
-
-        application_stylesheet = "app/assets/stylesheets/application.tailwind.css"
-        import = '@import "./mosaic_relay/llm_chat.css";'
-
-        if !File.exist?(destination_path(application_stylesheet))
-          say_status :warning, "#{application_stylesheet} not found; include #{stylesheet} manually"
-        elsif File.read(destination_path(application_stylesheet)).include?(import)
-          say_status :identical, application_stylesheet
-        else
-          prepend_to_file application_stylesheet, "#{import}\n"
-        end
-      end
-
-      def install_pod_definition
+      def install_relay_chat_pod_definition
         path = "config/pod_definitions.yml"
         destination = destination_path(path)
 
         unless File.exist?(destination)
-          create_file path, YAML.dump("pod_definitions" => { "llm_chat_window" => MosaicRelay::PodDefinition.llm_chat_window })
+          create_file path, YAML.dump("pod_definitions" => { "relay_chat" => MosaicRelay::PodDefinition.relay_chat })
           return
         end
 
         content = File.read(destination)
-        if content.match?(/^\s{2}llm_chat_window:\s*$/)
+        if content.match?(/^\s{2}relay_chat:\s*$/)
           say_status :identical, path
           return
         end
 
         root = content.match(/^(?:pod_definitions|pods):[ \t]*\n/)&.to_s
         unless root
-          say_status :warning, "#{path} has no pod_definitions root; add MosaicRelay::PodDefinition.llm_chat_window manually"
+          say_status :warning, "#{path} has no pod_definitions root; add MosaicRelay::PodDefinition.relay_chat manually"
           return
         end
 
         inject_into_file path, pod_definition_yaml, after: root
+      end
+
+      def install_admin_sidebar_links
+        sidebar_paths = [
+          "app/views/layouts/admin/shared/_desktop_sidebar_content.erb",
+          "app/views/layouts/admin/shared/_mobile_sidebar_content.html.erb"
+        ]
+
+        sidebar_paths.each do |path|
+          destination = destination_path(path)
+          next unless File.exist?(destination)
+
+          content = File.read(destination)
+          if content.include?("mosaic_relay_settings_path")
+            say_status :identical, path
+          elsif content.include?("</nav>")
+            insert_admin_sidebar_link(destination, content)
+          else
+            say_status :warning, "#{path} has no navigation container; add Relay Settings manually"
+          end
+        end
       end
 
       def show_post_install_steps
@@ -176,8 +197,34 @@ module MosaicRelay
       end
 
       def pod_definition_yaml
-        yaml = YAML.dump("llm_chat_window" => MosaicRelay::PodDefinition.llm_chat_window).delete_prefix("---\n")
+        yaml = YAML.dump("relay_chat" => MosaicRelay::PodDefinition.relay_chat).delete_prefix("---\n")
         yaml.lines.map { |line| "  #{line}" }.join
+      end
+
+      def admin_sidebar_link
+        <<~ERB
+
+              <%= render partial: 'layouts/admin/shared/nav_item', locals: {
+                name: "Relay Settings",
+                path: mosaic_relay_settings_path,
+                icon: "settings",
+                current: controller_name == "relay_settings"
+              } %>
+        ERB
+      end
+
+      def insert_admin_sidebar_link(destination, content)
+        # Keep Relay Settings next to the host's global settings entry when the
+        # host provides one; otherwise retain the safe append-to-nav behavior.
+        global_item = content.match(
+          /^[ \t]*<%= render partial: ['"]layouts\/admin\/shared\/nav_item['"], locals: \{\s*\n[ \t]*name: ['"]Global['"]/
+        )
+
+        if global_item
+          insert_into_file destination, admin_sidebar_link, before: global_item[0]
+        else
+          insert_into_file destination, admin_sidebar_link, before: "</nav>"
+        end
       end
     end
   end

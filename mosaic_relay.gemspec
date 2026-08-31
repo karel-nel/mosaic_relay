@@ -7,7 +7,7 @@ Gem::Specification.new do |spec|
   spec.email       = [ "jason@niimble.io" ]
   spec.homepage    = "https://niimble.io"
   spec.summary     = "Mosaic integration for Niimble Relay."
-  spec.description = "A Rails engine that integrates Mosaic CMS sites with Niimble Relay chat and document-ingestion APIs."
+  spec.description = "A Rails engine that exposes Mosaic CMS content to Niimble Relay."
   spec.license     = "MIT"
 
   spec.metadata["homepage_uri"] = spec.homepage
@@ -19,5 +19,4 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "rails", ">= 7.1", "< 8.2"
   spec.add_dependency "nokogiri", ">= 1.12"
-  spec.add_dependency "redis", ">= 5.0"
 end

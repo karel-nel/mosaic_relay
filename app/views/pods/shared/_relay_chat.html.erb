@@ -1,0 +1,8 @@
+<%# Relay owns all chat UI, styles, images, and interaction behavior. %>
+<% widget_markup = MosaicRelay.configuration.widget_markup.to_s %>
+<% script_url = MosaicRelay::WidgetMarkup.script_url(widget_markup) %>
+<% if script_url.present? && !instance_variable_defined?(:@_mosaic_relay_widget_script_rendered) %>
+  <% @_mosaic_relay_widget_script_rendered = true %>
+  <%= javascript_include_tag script_url, defer: true %>
+<% end %>
+<relay-llm-widget><%= raw MosaicRelay::WidgetMarkup.mount_markup(widget_markup) %></relay-llm-widget>

@@ -7,15 +7,15 @@ module MosaicRelay
     def self.call(model: default_model)
       return yaml_only_result unless model
 
-      definition = MosaicRelay::PodDefinition.llm_chat_window
-      record = model.find_or_initialize_by(pod_type: "llm_chat_window")
+      definition = MosaicRelay::PodDefinition.relay_chat
+      record = model.find_or_initialize_by(pod_type: MigrationContract::CANONICAL_POD_TYPE)
       record.assign_attributes(supported_attributes(record, definition))
       record.save!
       reload_schema_registry
 
       Result.new(
         status: :installed,
-        message: "Installed Mosaic Relay Pod definition: llm_chat_window",
+        message: "Installed Mosaic Relay Pod definition: #{MigrationContract::CANONICAL_POD_TYPE}",
         record:
       )
     end
