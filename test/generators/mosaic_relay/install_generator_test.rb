@@ -50,6 +50,17 @@ class MosaicRelayInstallGeneratorTest < Rails::Generators::TestCase
     refute File.exist?(File.join(destination_root, "app/assets/stylesheets/mosaic_relay/llm_chat.css"))
   end
 
+  test "assigns unique migration versions when installation runs within one second" do
+    stub_class_method(Time, :current, -> { Time.utc(2026, 8, 31, 12) }) { run_generator }
+
+    versions = Dir.glob(File.join(destination_root, "db/migrate/*.rb")).sort.map do |path|
+      File.basename(path).split("_", 2).first
+    end
+
+    assert_equal %w[20260831120000 20260831120001 20260831120002 20260831120003], versions
+    assert_equal versions.length, versions.uniq.length
+  end
+
   test "can be run twice without duplicate routes, migrations, or Pod definitions" do
     run_generator
     run_generator

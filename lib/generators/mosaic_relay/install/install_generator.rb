@@ -27,7 +27,10 @@ module MosaicRelay
         end
 
         if timestamped_migrations
-          Time.current.utc.strftime("%Y%m%d%H%M%S")
+          timestamp = Time.current.utc.strftime("%Y%m%d%H%M%S").to_i
+          next_number = current_migration_number(dirname).to_i + 1
+
+          format("%014d", [ timestamp, next_number ].max)
         else
           format("%03d", current_migration_number(dirname) + 1)
         end
